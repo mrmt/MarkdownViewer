@@ -9,6 +9,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @ObservedObject var documentManager: DocumentManager
     @State private var markdownContent: String = ""
     @State private var filePath: String = ""
     @State private var isDragOver = false
@@ -62,6 +63,11 @@ struct ContentView: View {
         .onDrop(of: ["public.file-url"], isTargeted: $isDragOver) { providers in
             handleDrop(providers: providers)
         }
+        .onChange(of: documentManager.fileURL) { newURL in
+            if let url = newURL {
+                loadMarkdownFile(path: url.path)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenMarkdownFile"))) { notification in
             if let userInfo = notification.userInfo,
                let path = userInfo["filePath"] as? String {
@@ -100,6 +106,6 @@ struct ContentView: View {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ContentView(documentManager: DocumentManager.shared)
     }
 }

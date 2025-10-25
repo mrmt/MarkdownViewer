@@ -4,6 +4,10 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ja_JP</string>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -16,10 +20,14 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>net.daringfireball.markdown</string>
-				<string>public.plain-text</string>
 			</array>
-			<key>NSDocumentClass</key>
-			<string>MarkdownDocument</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>md</string>
+				<string>markdown</string>
+			</array>
+			<key>LSTypeIsPackage</key>
+			<false/>
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
