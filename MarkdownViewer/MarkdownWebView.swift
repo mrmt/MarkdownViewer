@@ -1,0 +1,297 @@
+//
+// MarkdownWebView.swift
+// MarkdownViewer
+//
+// Copyright (c) 2025 Jun Morimoto
+// Licensed under the MIT License
+//
+
+import SwiftUI
+import WebKit
+import Markdown
+
+struct MarkdownWebView: NSViewRepresentable {
+    let markdown: String
+    
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
+        return webView
+    }
+    
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        let html = renderMarkdownToHTML(markdown)
+        nsView.loadHTMLString(html, baseURL: nil)
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    class Coordinator: NSObject, WKNavigationDelegate {
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // Navigation completed successfully
+        }
+        
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            // Navigation failed
+        }
+        
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            // Provisional navigation failed
+        }
+    }
+    
+    private func renderMarkdownToHTML(_ markdown: String) -> String {
+        let document = Document(parsing: markdown)
+        let htmlContent = HTMLFormatter.format(document)
+        
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+                    line-height: 1.6;
+                    padding: 40px;
+                    max-width: 900px;
+                    margin: 0 auto;
+                    color: #333;
+                }
+                h1, h2, h3, h4, h5, h6 {
+                    margin-top: 24px;
+                    margin-bottom: 16px;
+                    font-weight: 600;
+                    line-height: 1.25;
+                }
+                h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+                h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+                h3 { font-size: 1.25em; }
+                code {
+                    background-color: rgba(175, 184, 193, 0.2);
+                    padding: 0.2em 0.4em;
+                    border-radius: 3px;
+                    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+                    font-size: 0.85em;
+                }
+                pre {
+                    background-color: #f6f8fa;
+                    padding: 16px;
+                    border-radius: 6px;
+                    overflow: auto;
+                }
+                pre code {
+                    background-color: transparent;
+                    padding: 0;
+                }
+                a {
+                    color: #0366d6;
+                    text-decoration: none;
+                }
+                a:hover {
+                    text-decoration: underline;
+                }
+                ul, ol {
+                    padding-left: 2em;
+                    margin: 0.5em 0;
+                }
+                li {
+                    margin: 0.25em 0;
+                }
+                ul ul, ol ul, ul ol, ol ol {
+                    margin: 0.25em 0;
+                }
+                p {
+                    margin: 1em 0;
+                }
+                strong {
+                    font-weight: 600;
+                }
+                blockquote {
+                    border-left: 4px solid #dfe2e5;
+                    padding-left: 1em;
+                    margin-left: 0;
+                    color: #6a737d;
+                }
+                table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 1em 0;
+                }
+                th, td {
+                    border: 1px solid #dfe2e5;
+                    padding: 6px 13px;
+                }
+                th {
+                    background-color: #f6f8fa;
+                    font-weight: 600;
+                }
+                hr {
+                    border: 0;
+                    border-top: 1px solid #dfe2e5;
+                    margin: 24px 0;
+                }
+            </style>
+        </head>
+        <body>
+            \(htmlContent)
+        </body>
+        </html>
+        """
+    }
+}
+
+// HTMLフォーマッタ
+struct HTMLFormatter: MarkupWalker {
+    var result = ""
+    var isInListItem = false
+    
+    static func format(_ markup: Markup) -> String {
+        var formatter = HTMLFormatter()
+        formatter.visit(markup)
+        return formatter.result
+    }
+    
+    mutating func visitDocument(_ document: Markdown.Document) {
+        descendInto(document)
+    }
+    
+    mutating func visitHeading(_ heading: Markdown.Heading) {
+        let level = heading.level
+        result += "<h\(level)>"
+        descendInto(heading)
+        result += "</h\(level)>"
+    }
+    
+    mutating func visitParagraph(_ paragraph: Markdown.Paragraph) {
+        if !isInListItem {
+            result += "<p>"
+        }
+        descendInto(paragraph)
+        if !isInListItem {
+            result += "</p>"
+        }
+    }
+    
+    mutating func visitText(_ text: Markdown.Text) {
+        result += text.string.htmlEscaped
+    }
+    
+    mutating func visitEmphasis(_ emphasis: Markdown.Emphasis) {
+        result += "<em>"
+        descendInto(emphasis)
+        result += "</em>"
+    }
+    
+    mutating func visitStrong(_ strong: Markdown.Strong) {
+        result += "<strong>"
+        descendInto(strong)
+        result += "</strong>"
+    }
+    
+    mutating func visitInlineCode(_ inlineCode: Markdown.InlineCode) {
+        result += "<code>\(inlineCode.code.htmlEscaped)</code>"
+    }
+    
+    mutating func visitCodeBlock(_ codeBlock: Markdown.CodeBlock) {
+        result += "<pre><code>"
+        result += codeBlock.code.htmlEscaped
+        result += "</code></pre>"
+    }
+    
+    mutating func visitLink(_ link: Markdown.Link) {
+        result += "<a href=\"\(link.destination ?? "")\">"
+        descendInto(link)
+        result += "</a>"
+    }
+    
+    mutating func visitUnorderedList(_ unorderedList: Markdown.UnorderedList) {
+        result += "<ul>"
+        descendInto(unorderedList)
+        result += "</ul>"
+    }
+    
+    mutating func visitOrderedList(_ orderedList: Markdown.OrderedList) {
+        result += "<ol>"
+        descendInto(orderedList)
+        result += "</ol>"
+    }
+    
+    mutating func visitListItem(_ listItem: Markdown.ListItem) {
+        result += "<li>"
+        let wasInListItem = isInListItem
+        isInListItem = true
+        descendInto(listItem)
+        isInListItem = wasInListItem
+        result += "</li>"
+    }
+    
+    mutating func visitBlockQuote(_ blockQuote: Markdown.BlockQuote) {
+        result += "<blockquote>"
+        descendInto(blockQuote)
+        result += "</blockquote>"
+    }
+    
+    mutating func visitThematicBreak(_ thematicBreak: Markdown.ThematicBreak) {
+        result += "<hr>"
+    }
+    
+    mutating func visitLineBreak(_ lineBreak: Markdown.LineBreak) {
+        result += "<br>"
+    }
+    
+    mutating func visitSoftBreak(_ softBreak: Markdown.SoftBreak) {
+        result += " "
+    }
+    
+    mutating func visitTable(_ table: Markdown.Table) {
+        result += "<table>"
+        descendInto(table)
+        result += "</table>"
+    }
+    
+    mutating func visitTableHead(_ tableHead: Markdown.Table.Head) {
+        result += "<thead><tr>"
+        descendInto(tableHead)
+        result += "</tr></thead>"
+    }
+    
+    mutating func visitTableBody(_ tableBody: Markdown.Table.Body) {
+        result += "<tbody>"
+        descendInto(tableBody)
+        result += "</tbody>"
+    }
+    
+    mutating func visitTableRow(_ tableRow: Markdown.Table.Row) {
+        result += "<tr>"
+        descendInto(tableRow)
+        result += "</tr>"
+    }
+    
+    mutating func visitTableCell(_ tableCell: Markdown.Table.Cell) {
+        let tag = tableCell.colspan > 1 ? "th" : "td"
+        result += "<\(tag)>"
+        descendInto(tableCell)
+        result += "</\(tag)>"
+    }
+    
+    private mutating func descendInto(_ markup: Markup) {
+        for child in markup.children {
+            visit(child)
+        }
+    }
+}
+
+extension String {
+    var htmlEscaped: String {
+        return self
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
+    }
+}
