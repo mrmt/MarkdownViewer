@@ -12,11 +12,18 @@ import Markdown
 
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
+    @Binding var webView: WKWebView?
     
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
+        
+        // WKWebViewの参照を保存
+        DispatchQueue.main.async {
+            self.webView = webView
+        }
+        
         return webView
     }
     
@@ -41,6 +48,27 @@ struct MarkdownWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             // Provisional navigation failed
         }
+    }
+    
+    // スクロール操作用のメソッド
+    static func scrollDown(_ webView: WKWebView?, lineHeight: CGFloat = 20) {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript("window.scrollBy(0, \(lineHeight));")
+    }
+    
+    static func scrollUp(_ webView: WKWebView?, lineHeight: CGFloat = 20) {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript("window.scrollBy(0, -\(lineHeight));")
+    }
+    
+    static func scrollToTop(_ webView: WKWebView?) {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript("window.scrollTo(0, 0);")
+    }
+    
+    static func scrollToBottom(_ webView: WKWebView?) {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript("window.scrollTo(0, document.body.scrollHeight);")
     }
     
     private func renderMarkdownToHTML(_ markdown: String) -> String {

@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import WebKit
 
 // ファイル監視クラス（タイマーベース）
 class FileWatcher: ObservableObject {
@@ -84,6 +85,8 @@ struct ContentView: View {
     @State private var filePath: String = ""
     @State private var isDragOver = false
     @StateObject private var fileWatcher = FileWatcher()
+    @State private var webView: WKWebView?
+    @State private var eventMonitor: Any?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -128,7 +131,7 @@ struct ContentView: View {
                         .padding(40)
                 )
             } else {
-                MarkdownWebView(markdown: markdownContent)
+                MarkdownWebView(markdown: markdownContent, webView: $webView)
             }
         }
         .onDrop(of: ["public.file-url"], isTargeted: $isDragOver) { providers in
@@ -147,6 +150,12 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ReloadMarkdownFile"))) { _ in
             reloadMarkdownFile()
+        }
+        .onAppear {
+            setupKeyEventMonitor()
+        }
+        .onDisappear {
+            removeKeyEventMonitor()
         }
     }
     
@@ -189,6 +198,64 @@ struct ContentView: View {
             markdownContent = content
         } catch {
             print("ファイルの再読み込みに失敗: \(error)")
+        }
+    }
+    
+    private func setupKeyEventMonitor() {
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
+            // 修飾キーが押されていないかチェック（Shiftを除く）
+            let modifierFlags = event.modifierFlags.intersection([.command, .control, .option])
+            
+            // G (Shift-g): 文書の末尾にジャンプ（大文字Gで判定）
+            if modifierFlags.isEmpty && event.characters == "G" {
+                MarkdownWebView.scrollToBottom(webView)
+                return nil // イベントを消費
+            }
+            
+            // j: 下に1行スクロール（修飾キーなし）
+            if modifierFlags.isEmpty && event.charactersIgnoringModifiers == "j" {
+                MarkdownWebView.scrollDown(webView)
+                return nil // イベントを消費
+            }
+            
+            // k: 上に1行スクロール（修飾キーなし）
+            if modifierFlags.isEmpty && event.charactersIgnoringModifiers == "k" {
+                MarkdownWebView.scrollUp(webView)
+                return nil // イベントを消費
+            }
+            
+            // Control-n: 下に1行スクロール
+            if event.modifierFlags.contains(.control) && event.charactersIgnoringModifiers == "n" {
+                MarkdownWebView.scrollDown(webView)
+                return nil // イベントを消費
+            }
+            
+            // Control-p: 上に1行スクロール
+            if event.modifierFlags.contains(.control) && event.charactersIgnoringModifiers == "p" {
+                MarkdownWebView.scrollUp(webView)
+                return nil // イベントを消費
+            }
+            
+            // Command-<: 文書の先頭にジャンプ
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "<" {
+                MarkdownWebView.scrollToTop(webView)
+                return nil // イベントを消費
+            }
+            
+            // Command->: 文書の末尾にジャンプ
+            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == ">" {
+                MarkdownWebView.scrollToBottom(webView)
+                return nil // イベントを消費
+            }
+            
+            return event // その他のイベントは通常通り処理
+        }
+    }
+    
+    private func removeKeyEventMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
         }
     }
 }
