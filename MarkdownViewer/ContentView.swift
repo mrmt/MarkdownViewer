@@ -74,6 +74,9 @@ struct ContentView: View {
                 loadMarkdownFile(path: path)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ReloadMarkdownFile"))) { _ in
+            reloadMarkdownFile()
+        }
     }
     
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
@@ -101,6 +104,11 @@ struct ContentView: View {
         } catch {
             print("ファイルの読み込みに失敗: \(error)")
         }
+    }
+    
+    private func reloadMarkdownFile() {
+        guard !filePath.isEmpty else { return }
+        loadMarkdownFile(path: filePath)
     }
 }
 

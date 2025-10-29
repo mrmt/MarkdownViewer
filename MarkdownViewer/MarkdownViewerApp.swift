@@ -28,6 +28,12 @@ struct MarkdownViewerApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandMenu("表示") {
+                Button("リロード") {
+                    NotificationCenter.default.post(name: NSNotification.Name("ReloadMarkdownFile"), object: nil)
+                }
+                .keyboardShortcut("r", modifiers: .command)
+            }
         }
         .handlesExternalEvents(matching: [])
         .defaultSize(width: 800, height: 600)
