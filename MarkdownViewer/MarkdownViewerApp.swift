@@ -27,7 +27,12 @@ struct MarkdownViewerApp: App {
                 .frame(minWidth: 800, minHeight: 600)
         }
         .commands {
-            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .newItem) {
+                Button("Open...") {
+                    NotificationCenter.default.post(name: .openFile, object: nil)
+                }
+                .keyboardShortcut("o", modifiers: .command)
+            }
             CommandMenu("表示") {
                 Button("リロード") {
                     NotificationCenter.default.post(name: NSNotification.Name("ReloadMarkdownFile"), object: nil)
@@ -38,6 +43,10 @@ struct MarkdownViewerApp: App {
         .handlesExternalEvents(matching: [])
         .defaultSize(width: 800, height: 600)
     }
+}
+
+extension Notification.Name {
+    static let openFile = Notification.Name("openFile")
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {

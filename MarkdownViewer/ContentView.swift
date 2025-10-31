@@ -8,6 +8,7 @@
 
 import SwiftUI
 import WebKit
+import UniformTypeIdentifiers
 
 // ファイル監視クラス（タイマーベース）
 class FileWatcher: ObservableObject {
@@ -142,20 +143,36 @@ struct ContentView: View {
                 loadMarkdownFile(path: url.path)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenMarkdownFile"))) { notification in
-            if let userInfo = notification.userInfo,
-               let path = userInfo["filePath"] as? String {
-                loadMarkdownFile(path: path)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ReloadMarkdownFile"))) { _ in
-            reloadMarkdownFile()
+        .onReceive(NotificationCenter.default.publisher(for: .openFile)) { _ in
+            openFile()
         }
         .onAppear {
+            // アプリ起動時にファイルパスが指定されていれば読み込む
+            if let url = documentManager.fileURL {
+                loadMarkdownFile(path: url.path)
+                // documentManager の URL をクリアして、次回以降の onChange を正しく検知
+                DispatchQueue.main.async {
+                    documentManager.fileURL = nil
+                }
+            }
             setupKeyEventMonitor()
         }
         .onDisappear {
             removeKeyEventMonitor()
+        }
+    }
+    
+    private func openFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType.text]
+        
+        if panel.runModal() == .OK {
+            if let url = panel.url {
+                loadMarkdownFile(path: url.path)
+            }
         }
     }
     
