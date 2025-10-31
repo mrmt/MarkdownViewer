@@ -222,6 +222,38 @@ struct ContentView: View {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
             // 修飾キーが押されていないかチェック（Shiftを除く）
             let modifierFlags = event.modifierFlags.intersection([.command, .control, .option])
+            let isShiftPressed = event.modifierFlags.contains(.shift)
+            
+            // キーコードによる判定（特殊キー）
+            switch event.keyCode {
+            case 125: // Down Arrow
+                MarkdownWebView.scrollDown(webView)
+                return nil
+            case 126: // Up Arrow
+                MarkdownWebView.scrollUp(webView)
+                return nil
+            case 115: // Home
+                MarkdownWebView.scrollToTop(webView)
+                return nil
+            case 119: // End
+                MarkdownWebView.scrollToBottom(webView)
+                return nil
+            case 116: // Page Up
+                MarkdownWebView.scrollPageUp(webView)
+                return nil
+            case 121: // Page Down
+                MarkdownWebView.scrollPageDown(webView)
+                return nil
+            case 49: // Space
+                if isShiftPressed {
+                    MarkdownWebView.scrollPageUp(webView)
+                } else {
+                    MarkdownWebView.scrollPageDown(webView)
+                }
+                return nil
+            default:
+                break
+            }
             
             // G (Shift-g): 文書の末尾にジャンプ（大文字Gで判定）
             if modifierFlags.isEmpty && event.characters == "G" {

@@ -61,6 +61,16 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.evaluateJavaScript("window.scrollBy(0, -\(lineHeight));")
     }
     
+    static func scrollPageDown(_ webView: WKWebView?) {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript("window.scrollBy(0, window.innerHeight);")
+    }
+    
+    static func scrollPageUp(_ webView: WKWebView?) {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript("window.scrollBy(0, -window.innerHeight);")
+    }
+    
     static func scrollToTop(_ webView: WKWebView?) {
         guard let webView = webView else { return }
         webView.evaluateJavaScript("window.scrollTo(0, 0);")
