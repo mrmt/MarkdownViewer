@@ -21,7 +21,17 @@ let package = Package(
             dependencies: [
                 .product(name: "Markdown", package: "swift-markdown")
             ],
-            path: "MarkdownViewer"
+            path: "MarkdownViewer",
+            exclude: ["Info.plist", "AppIcon.icns"],
+            resources: [
+                .process("Assets.xcassets"),
+                .copy("MarkdownViewer.entitlements")
+            ]
+        ),
+        .testTarget(
+            name: "MarkdownViewerTests",
+            dependencies: ["MarkdownViewer"],
+            path: "Tests/MarkdownViewerTests"
         )
     ]
 )
