@@ -146,6 +146,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openFile)) { _ in
             openFile()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ReloadMarkdownFile"))) { _ in
+            reloadMarkdownFile()
+        }
         .onAppear {
             // アプリ起動時にファイルパスが指定されていれば読み込む
             if let url = documentManager.fileURL {
