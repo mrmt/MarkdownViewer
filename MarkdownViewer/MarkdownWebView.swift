@@ -28,8 +28,18 @@ struct MarkdownWebView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: WKWebView, context: Context) {
-        let html = renderMarkdownToHTML(markdown)
-        nsView.loadHTMLString(html, baseURL: nil)
+        // 現在のスクロール位置を保存してからHTMLをロード
+        nsView.evaluateJavaScript("window.pageYOffset") { result, error in
+            if let yOffset = result as? CGFloat {
+                context.coordinator.savedScrollPosition = CGPoint(x: 0, y: yOffset)
+            }
+            
+            // メインスレッドでHTMLをロード
+            DispatchQueue.main.async {
+                let html = self.renderMarkdownToHTML(self.markdown)
+                nsView.loadHTMLString(html, baseURL: nil)
+            }
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -37,18 +47,35 @@ struct MarkdownWebView: NSViewRepresentable {
     }
     
     class Coordinator: NSObject, WKNavigationDelegate {
+        var savedScrollPosition: CGPoint?
+        
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            // Navigation completed successfully
+            // Navigation completed successfully - スクロール位置を復元
+            if let position = savedScrollPosition {
+                // DOMの描画完了を待つため、少し遅延させて復元
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    self.restoreScrollPosition(webView, position: position)
+                }
+                savedScrollPosition = nil
+            }
         }
         
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             // Navigation failed
+            savedScrollPosition = nil
         }
         
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             // Provisional navigation failed
+            savedScrollPosition = nil
+        }
+        
+        private func restoreScrollPosition(_ webView: WKWebView, position: CGPoint) {
+            let script = "window.scrollTo(\(position.x), \(position.y));"
+            webView.evaluateJavaScript(script, completionHandler: nil)
         }
     }
+    
     
     // スクロール操作用のメソッド
     static func scrollDown(_ webView: WKWebView?, lineHeight: CGFloat = 20) {
