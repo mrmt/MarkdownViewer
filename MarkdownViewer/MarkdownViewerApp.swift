@@ -8,164 +8,222 @@
 
 import SwiftUI
 
-// ファイル状態を管理するObservableObject
+// ファイル状態を管理するObservableObject（各ウィンドウごとのインスタンス）
 class DocumentManager: ObservableObject {
     @Published var fileURL: URL?
-    
-    static let shared = DocumentManager()
-    private init() {}
 }
 
 @main
-struct MarkdownViewerApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var documentManager = DocumentManager.shared
+class MarkdownViewerApp: NSObject, NSApplicationDelegate {
+    let appDelegate = AppDelegate()
     
-    var body: some Scene {
-        WindowGroup {
-            ContentView(documentManager: documentManager)
-                .frame(minWidth: 800, minHeight: 600)
-        }
-        .commands {
-            CommandGroup(replacing: .newItem) {
-                Button("Open...") {
-                    NotificationCenter.default.post(name: .openFile, object: nil)
-                }
-                .keyboardShortcut("o", modifiers: .command)
-            }
-            CommandMenu("表示") {
-                Button("リロード") {
-                    NotificationCenter.default.post(name: NSNotification.Name("ReloadMarkdownFile"), object: nil)
-                }
-                .keyboardShortcut("r", modifiers: .command)
-            }
-        }
-        .handlesExternalEvents(matching: [])
-        .defaultSize(width: 800, height: 600)
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = MarkdownViewerApp()
+        app.delegate = delegate
+        _ = NSApplicationMain(CommandLine.argc, CommandLine.unsafeArgv)
+    }
+    
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        appDelegate.applicationWillFinishLaunching(notification)
+    }
+    
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        appDelegate.applicationDidFinishLaunching(notification)
+    }
+    
+    func application(_ application: NSApplication, open urls: [URL]) {
+        appDelegate.application(application, open: urls)
+    }
+    
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        return appDelegate.application(sender, openFile: filename)
+    }
+    
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        return appDelegate.applicationShouldHandleReopen(sender, hasVisibleWindows: flag)
+    }
+    
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return appDelegate.applicationShouldTerminateAfterLastWindowClosed(sender)
+    }
+    
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        return appDelegate.applicationShouldOpenUntitledFile(sender)
     }
 }
 
 extension Notification.Name {
     static let openFile = Notification.Name("openFile")
+    static let newWindow = Notification.Name("newWindow")
+    static let openFileInNewWindow = Notification.Name("openFileInNewWindow")
+}
+
+// ウィンドウコントローラークラス
+class MarkdownWindowController: NSWindowController {
+    override func windowDidLoad() {
+        super.windowDidLoad()
+    }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var pendingFileURL: URL?
+    private var pendingFileURLs: [URL] = []
+    private var windowControllers: [MarkdownWindowController] = []
     
     func applicationWillFinishLaunching(_ notification: Notification) {
-        // ファイルを開くイベントを受け取る準備
-        // このメソッドは application(_:open:) より前に呼ばれる
+        // 通知のリスナーを登録
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNewWindow),
+            name: .newWindow,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOpenFileInNewWindow),
+            name: .openFileInNewWindow,
+            object: nil
+        )
+    }
+    
+    @objc private func handleNewWindow() {
+        createWindow(fileURL: nil)
+    }
+    
+    @objc private func handleOpenFileInNewWindow(_ notification: Notification) {
+        if let url = notification.object as? URL {
+            createWindow(fileURL: url)
+        }
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             // ウィンドウがない場合は新しいウィンドウを開く
-            for window in sender.windows {
-                window.makeKeyAndOrderFront(nil)
-            }
+            createWindow(fileURL: nil)
         }
         return true
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // メニューバーを設定
+        setupMenuBar()
+        
         // アプリをアクティブにする
         NSApplication.shared.activate(ignoringOtherApps: true)
         
-        // 保留中のファイルまたはコマンドライン引数からファイルを取得
-        var fileToOpen: URL? = pendingFileURL
-        
-        // コマンドライン引数をチェック（システム引数は無視）
-        if fileToOpen == nil {
-            let args = CommandLine.arguments
-            if args.count > 1 {
-                // システム引数とその値を無視
-                var skipNext = false
-                var filePaths: [String] = []
-                for arg in args.dropFirst() {
-                    if skipNext {
-                        skipNext = false
-                        continue
-                    }
-                    if arg.hasPrefix("-") {
-                        // 次の引数もスキップ（-XXX YYYのパターン）
-                        skipNext = true
-                        continue
-                    }
-                    // ファイルとして存在するかチェック
-                    if FileManager.default.fileExists(atPath: arg) {
-                        filePaths.append(arg)
-                    }
+        // コマンドライン引数からファイルを取得
+        let args = CommandLine.arguments
+        if args.count > 1 {
+            var skipNext = false
+            for arg in args.dropFirst() {
+                if skipNext {
+                    skipNext = false
+                    continue
                 }
-                
-                if let filePath = filePaths.first {
-                    fileToOpen = URL(fileURLWithPath: filePath)
+                if arg.hasPrefix("-") {
+                    skipNext = true
+                    continue
+                }
+                // ファイルとして存在するかチェック
+                if FileManager.default.fileExists(atPath: arg) {
+                    pendingFileURLs.append(URL(fileURLWithPath: arg))
                 }
             }
         }
         
-        // ウィンドウが存在しない場合、必ず作成
-        if NSApplication.shared.windows.isEmpty {
-            createWindow()
-        }
-        
-        // ファイルを開く必要がある場合、ウィンドウが作成されるまで待つ
-        if let url = fileToOpen {
-            waitForWindowAndOpenFile(url: url)
+        // 保留中のファイルを開く
+        if !pendingFileURLs.isEmpty {
+            for url in pendingFileURLs {
+                createWindow(fileURL: url)
+            }
+            pendingFileURLs.removeAll()
+        } else if windowControllers.isEmpty {
+            // ファイルが指定されておらず、かつウィンドウがまだ開かれていない場合のみ空のウィンドウを開く
+            createWindow(fileURL: nil)
         }
     }
     
-    private func waitForWindowAndOpenFile(url: URL, attempts: Int = 0) {
-        if !NSApplication.shared.windows.isEmpty {
-            // ウィンドウが存在する
-            ensureWindowVisible()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.openFile(url: url)
-                self.pendingFileURL = nil
-            }
-        } else if attempts < 20 {
-            // まだウィンドウがない場合、0.1秒後に再試行
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.waitForWindowAndOpenFile(url: url, attempts: attempts + 1)
-            }
-        } else {
-            // タイムアウト：ウィンドウが作成されなかった
-            self.openFile(url: url)
-            self.pendingFileURL = nil
-        }
+    private func setupMenuBar() {
+        let mainMenu = NSMenu()
+        
+        // Appメニュー
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+        appMenu.addItem(withTitle: "MarkdownViewerについて", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "MarkdownViewerを隠す", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(NSMenuItem.separator())
+        appMenu.addItem(withTitle: "MarkdownViewerを終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        
+        // Fileメニュー
+        let fileMenu = NSMenu(title: "ファイル")
+        let fileMenuItem = NSMenuItem()
+        fileMenuItem.submenu = fileMenu
+        mainMenu.addItem(fileMenuItem)
+        
+        let newWindowItem = NSMenuItem(title: "新しいウィンドウ", action: #selector(newWindow), keyEquivalent: "n")
+        newWindowItem.target = self
+        fileMenu.addItem(newWindowItem)
+        
+        let openFileItem = NSMenuItem(title: "ファイルを開く...", action: #selector(openFile), keyEquivalent: "o")
+        openFileItem.target = self
+        fileMenu.addItem(openFileItem)
+        
+        fileMenu.addItem(NSMenuItem.separator())
+        fileMenu.addItem(withTitle: "ウィンドウを閉じる", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        
+        // 表示メニュー
+        let viewMenu = NSMenu(title: "表示")
+        let viewMenuItem = NSMenuItem()
+        viewMenuItem.submenu = viewMenu
+        mainMenu.addItem(viewMenuItem)
+        
+        let reloadItem = NSMenuItem(title: "リロード", action: #selector(reloadFile), keyEquivalent: "r")
+        reloadItem.target = self
+        viewMenu.addItem(reloadItem)
+        
+        NSApplication.shared.mainMenu = mainMenu
+    }
+    
+    @objc private func newWindow() {
+        createWindow(fileURL: nil)
+    }
+    
+    @objc private func openFile() {
+        NotificationCenter.default.post(name: .openFile, object: nil)
+    }
+    
+    @objc private func reloadFile() {
+        NotificationCenter.default.post(name: NSNotification.Name("ReloadMarkdownFile"), object: nil)
     }
     
     func application(_ application: NSApplication, open urls: [URL]) {
         // ファイルを開く（Finderからダブルクリックやopenコマンドで開いた場合）
-        guard let url = urls.first else { return }
-        
-        // 保留中のファイルとして保存（applicationDidFinishLaunchingで処理）
-        pendingFileURL = url
-        
-        // ウィンドウがない場合は手動で作成
-        if NSApplication.shared.windows.isEmpty {
-            createWindow()
+        // 各ファイルごとに新しいウィンドウを作成
+        for url in urls {
+            createWindow(fileURL: url)
         }
     }
     
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        // 旧形式のメソッドも残しておく（互換性のため）
+        // 旧形式のメソッド（互換性のため）
         let url = URL(fileURLWithPath: filename)
-        
-        // 保留中のファイルとして保存
-        pendingFileURL = url
-        
-        // ウィンドウがない場合は手動で作成
-        if NSApplication.shared.windows.isEmpty {
-            createWindow()
-        }
-        
-        // falseを返すことで、デフォルトのドキュメントベースの動作を防ぐ
-        return false
+        createWindow(fileURL: url)
+        return true
     }
     
-    private func createWindow() {
+    private func createWindow(fileURL: URL?) {
+        // DocumentManagerを作成
+        let documentManager = DocumentManager()
+        if let url = fileURL {
+            documentManager.fileURL = url
+        }
+        
         // SwiftUIビューを作成
-        let contentView = ContentView(documentManager: DocumentManager.shared)
+        let contentView = ContentView(documentManager: documentManager)
             .frame(minWidth: 800, minHeight: 600)
         
         // NSWindowを作成
@@ -176,39 +234,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.center()
-        window.setFrameAutosaveName("MainWindow")
         window.contentView = NSHostingView(rootView: contentView)
-        window.title = "MarkdownViewer"
-        window.makeKeyAndOrderFront(nil)
-    }
-    
-    private func ensureWindowVisible() {
-        // メインウィンドウを前面に表示
-        DispatchQueue.main.async {
-            for window in NSApplication.shared.windows {
-                window.makeKeyAndOrderFront(nil)
-                window.orderFrontRegardless()
-            }
-        }
-    }
-    
-    private func openFile(url: URL) {
-        DispatchQueue.main.async {
-            DocumentManager.shared.fileURL = url
-        }
+        window.title = fileURL?.lastPathComponent ?? "MarkdownViewer"
+        window.delegate = self
+        
+        // NSWindowControllerを作成して保持
+        let windowController = MarkdownWindowController(window: window)
+        windowControllers.append(windowController)
+        
+        windowController.showWindow(nil)
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return true
+        return false
     }
     
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        // 起動時に常に新しいウィンドウを開く
-        return true
+        return false
     }
-    
-    func applicationOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        // ウィンドウを開く処理
-        return true
+}
+
+// NSWindowDelegate extension
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        // ウィンドウが閉じられる時、配列から削除
+        if let window = notification.object as? NSWindow {
+            windowControllers.removeAll { $0.window == window }
+        }
     }
 }

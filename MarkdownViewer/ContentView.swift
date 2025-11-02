@@ -166,27 +166,40 @@ struct ContentView: View {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true  // 複数ファイルを選択可能にする
         panel.allowedContentTypes = [UTType.text]
         
         if panel.runModal() == .OK {
-            if let url = panel.url {
-                loadMarkdownFile(path: url.path)
+            for url in panel.urls {
+                if markdownContent.isEmpty {
+                    // 現在のウィンドウが空の場合は、現在のウィンドウで開く
+                    loadMarkdownFile(path: url.path)
+                } else {
+                    // それ以外は新しいウィンドウで開く
+                    NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
+                }
             }
         }
     }
     
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-        
-        provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, error) in
-            guard let data = item as? Data,
-                  let url = URL(dataRepresentation: data, relativeTo: nil),
-                  url.pathExtension.lowercased() == "md" || url.pathExtension.lowercased() == "markdown"
-            else { return }
-            
-            DispatchQueue.main.async {
-                loadMarkdownFile(path: url.path)
+        // 複数ファイルのドロップに対応
+        for (index, provider) in providers.enumerated() {
+            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, error) in
+                guard let data = item as? Data,
+                      let url = URL(dataRepresentation: data, relativeTo: nil),
+                      url.pathExtension.lowercased() == "md" || url.pathExtension.lowercased() == "markdown"
+                else { return }
+                
+                DispatchQueue.main.async {
+                    if index == 0 && self.markdownContent.isEmpty {
+                        // 最初のファイルで現在のウィンドウが空の場合は、現在のウィンドウで開く
+                        self.loadMarkdownFile(path: url.path)
+                    } else {
+                        // それ以外は新しいウィンドウで開く
+                        NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
+                    }
+                }
             }
         }
         
@@ -311,6 +324,6 @@ struct ContentView: View {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView(documentManager: DocumentManager.shared)
+        ContentView(documentManager: DocumentManager())
     }
 }
