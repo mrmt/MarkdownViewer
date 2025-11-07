@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9F7DC1392EABC59D00FE6386 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 9F7DC1382EABC59D00FE6386 /* Markdown */; };
+		9FAB96082EBDF0B500BD1FEA /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 9FAB96072EBDF0B500BD1FEA /* mermaid.min.js */; };
 		A1000001000000000000001 /* MarkdownViewerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002000000000000001 /* MarkdownViewerApp.swift */; };
 		A1000003000000000000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004000000000000001 /* ContentView.swift */; };
 		A1000005000000000000001 /* MarkdownWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006000000000000001 /* MarkdownWebView.swift */; };
@@ -15,6 +16,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9FAB96072EBDF0B500BD1FEA /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = mermaid.min.js; sourceTree = "<group>"; };
 		A1000002000000000000001 /* MarkdownViewerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownViewerApp.swift; sourceTree = "<group>"; };
 		A1000004000000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1000006000000000000001 /* MarkdownWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWebView.swift; sourceTree = "<group>"; };
@@ -47,6 +49,7 @@
 				A1000002000000000000001 /* MarkdownViewerApp.swift */,
 				A1000004000000000000001 /* ContentView.swift */,
 				A1000006000000000000001 /* MarkdownWebView.swift */,
+				9FAB96072EBDF0B500BD1FEA /* mermaid.min.js */,
 				A1000007000000000000001 /* Info.plist */,
 				A1000021000000000000001 /* AppIcon.icns */,
 			);
@@ -120,6 +123,7 @@
 		A1000010000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				9FAB96082EBDF0B500BD1FEA /* mermaid.min.js in Resources */,
 				A1000020000000000000001 /* AppIcon.icns in Resources */,
 			);
 		};
