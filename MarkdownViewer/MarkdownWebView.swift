@@ -36,8 +36,8 @@ struct MarkdownWebView: NSViewRepresentable {
             
             // メインスレッドでHTMLをロード
             DispatchQueue.main.async {
-                let html = self.renderMarkdownToHTML(self.markdown)
-                nsView.loadHTMLString(html, baseURL: nil)
+                let (html, baseURL) = self.renderMarkdownToHTML(self.markdown)
+                nsView.loadHTMLString(html, baseURL: baseURL)
             }
         }
     }
@@ -108,15 +108,32 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.evaluateJavaScript("window.scrollTo(0, document.body.scrollHeight);")
     }
     
-    private func renderMarkdownToHTML(_ markdown: String) -> String {
+    private func renderMarkdownToHTML(_ markdown: String) -> (String, URL?) {
         let document = Document(parsing: markdown)
-        let htmlContent = HTMLFormatter.format(document)
+        var formatter = HTMLFormatter()
+        formatter.visit(document)
+        let htmlContent = formatter.result
+        let hasMermaid = formatter.hasMermaid
         
-        return """
+        // baseURLを設定（リソースを読み込むため）
+        var baseURL: URL? = nil
+        if let resourcePath = Bundle.main.resourcePath {
+            baseURL = URL(fileURLWithPath: resourcePath)
+        }
+        
+        // mermaid.jsをバンドルから読み込む
+        var mermaidScript = ""
+        if hasMermaid {
+            // baseURLを使用してスクリプトタグで読み込む
+            mermaidScript = "<script src=\"mermaid.min.js\"></script>"
+        }
+        
+        let html = """
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
+            \(mermaidScript)
             <style>
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -199,13 +216,28 @@ struct MarkdownWebView: NSViewRepresentable {
                     border-top: 1px solid #dfe2e5;
                     margin: 24px 0;
                 }
+                .mermaid {
+                    text-align: center;
+                    margin: 1em 0;
+                }
             </style>
         </head>
         <body>
             \(htmlContent)
+            \(hasMermaid ? """
+            <script>
+                if (typeof mermaid !== 'undefined') {
+                    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+                } else {
+                    console.error('mermaid.jsが読み込まれませんでした');
+                }
+            </script>
+            """ : "")
         </body>
         </html>
         """
+        
+        return (html, baseURL)
     }
 }
 
@@ -213,6 +245,7 @@ struct MarkdownWebView: NSViewRepresentable {
 struct HTMLFormatter: MarkupWalker {
     var result = ""
     var isInListItem = false
+    var hasMermaid = false
     
     static func format(_ markup: Markup) -> String {
         var formatter = HTMLFormatter()
@@ -262,9 +295,21 @@ struct HTMLFormatter: MarkupWalker {
     }
     
     mutating func visitCodeBlock(_ codeBlock: Markdown.CodeBlock) {
-        result += "<pre><code>"
-        result += codeBlock.code.htmlEscaped
-        result += "</code></pre>"
+        let language = codeBlock.language ?? ""
+        if language.lowercased() == "mermaid" {
+            hasMermaid = true
+            result += "<div class=\"mermaid\">"
+            result += codeBlock.code.htmlEscaped
+            result += "</div>"
+        } else {
+            result += "<pre><code"
+            if !language.isEmpty {
+                result += " class=\"language-\(language.htmlEscaped)\""
+            }
+            result += ">"
+            result += codeBlock.code.htmlEscaped
+            result += "</code></pre>"
+        }
     }
     
     mutating func visitLink(_ link: Markdown.Link) {

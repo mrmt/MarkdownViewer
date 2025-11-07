@@ -25,7 +25,8 @@ let package = Package(
             exclude: ["Info.plist", "AppIcon.icns"],
             resources: [
                 .process("Assets.xcassets"),
-                .copy("MarkdownViewer.entitlements")
+                .copy("MarkdownViewer.entitlements"),
+                .copy("mermaid.min.js")
             ]
         ),
         .testTarget(
