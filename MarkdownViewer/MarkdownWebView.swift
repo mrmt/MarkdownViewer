@@ -16,8 +16,11 @@ struct MarkdownWebView: NSViewRepresentable {
     
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = FocusableWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
+        
+        // テキスト選択とコピーを有効にする
+        webView.allowsMagnification = true
         
         // WKWebViewの参照を保存
         DispatchQueue.main.async {
@@ -73,6 +76,15 @@ struct MarkdownWebView: NSViewRepresentable {
         private func restoreScrollPosition(_ webView: WKWebView, position: CGPoint) {
             let script = "window.scrollTo(\(position.x), \(position.y));"
             webView.evaluateJavaScript(script, completionHandler: nil)
+        }
+    }
+    
+    // WKWebViewのサブクラスを作成して、マウスクリック時にフォーカスを設定
+    class FocusableWebView: WKWebView {
+        override func mouseDown(with event: NSEvent) {
+            super.mouseDown(with: event)
+            // マウスクリック時にフォーカスを設定して、編集メニューが動作するようにする
+            window?.makeFirstResponder(self)
         }
     }
     
