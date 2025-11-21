@@ -313,6 +313,15 @@ struct ContentView: View {
                 return nil // イベントを消費
             }
             
+            // Command-C (コピー) と Command-A (全選択) はWKWebViewに渡す
+            if event.modifierFlags.contains(.command) {
+                if event.charactersIgnoringModifiers == "c" || // コピー
+                   event.charactersIgnoringModifiers == "a" {  // 全選択
+                    // WKWebViewにイベントを渡す
+                    return event
+                }
+            }
+            
             return event // その他のイベントは通常通り処理
         }
     }
