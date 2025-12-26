@@ -10,6 +10,108 @@ import SwiftUI
 import WebKit
 import UniformTypeIdentifiers
 
+// MARK: - Key Binding System
+
+/// キーコード定義（マジックナンバーを排除）
+enum KeyCode: UInt16 {
+    case downArrow = 125
+    case upArrow = 126
+    case home = 115
+    case end = 119
+    case pageUp = 116
+    case pageDown = 121
+    case space = 49
+}
+
+/// キーバインディング定義
+struct KeyBinding: Hashable {
+    let key: String?
+    let keyCode: KeyCode?
+    let modifiers: NSEvent.ModifierFlags
+    let requiresShift: Bool
+
+    init(key: String, modifiers: NSEvent.ModifierFlags = [], requiresShift: Bool = false) {
+        self.key = key
+        self.keyCode = nil
+        self.modifiers = modifiers
+        self.requiresShift = requiresShift
+    }
+
+    init(keyCode: KeyCode, modifiers: NSEvent.ModifierFlags = [], requiresShift: Bool = false) {
+        self.key = nil
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+        self.requiresShift = requiresShift
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(key)
+        hasher.combine(keyCode?.rawValue)
+        hasher.combine(modifiers.rawValue)
+        hasher.combine(requiresShift)
+    }
+
+    static func == (lhs: KeyBinding, rhs: KeyBinding) -> Bool {
+        lhs.key == rhs.key &&
+        lhs.keyCode == rhs.keyCode &&
+        lhs.modifiers == rhs.modifiers &&
+        lhs.requiresShift == rhs.requiresShift
+    }
+}
+
+/// キーバインドハンドラ
+class KeyBindingHandler {
+    typealias Action = (WKWebView?) -> NSEvent?
+
+    private var bindings: [KeyBinding: Action] = [:]
+
+    func register(_ binding: KeyBinding, action: @escaping Action) {
+        bindings[binding] = action
+    }
+
+    func handle(_ event: NSEvent, webView: WKWebView?) -> NSEvent? {
+        let modifiers = event.modifierFlags.intersection([.command, .control, .option])
+        let isShiftPressed = event.modifierFlags.contains(.shift)
+
+        // キーコードベースの判定
+        if let keyCode = KeyCode(rawValue: event.keyCode) {
+            let binding = KeyBinding(keyCode: keyCode, modifiers: modifiers, requiresShift: isShiftPressed)
+            if let action = bindings[binding] {
+                return action(webView)
+            }
+
+            // Shiftを無視したバインディングもチェック（Spaceキー以外）
+            if isShiftPressed && keyCode != .space {
+                let bindingWithoutShift = KeyBinding(keyCode: keyCode, modifiers: modifiers, requiresShift: false)
+                if let action = bindings[bindingWithoutShift] {
+                    return action(webView)
+                }
+            }
+        }
+
+        // 文字ベースの判定
+        if let characters = event.charactersIgnoringModifiers {
+            // Shift-Gのような大文字判定
+            if event.characters == "G" && modifiers.isEmpty {
+                let binding = KeyBinding(key: "G", modifiers: modifiers)
+                if let action = bindings[binding] {
+                    return action(webView)
+                }
+            }
+
+            // 通常の文字キー
+            let binding = KeyBinding(key: characters, modifiers: modifiers)
+            if let action = bindings[binding] {
+                return action(webView)
+            }
+        }
+
+        return event
+    }
+}
+
+// MARK: - File Watcher
+
 // ファイル監視クラス（タイマーベース）
 class FileWatcher: ObservableObject {
     private var timer: Timer?
@@ -88,6 +190,7 @@ struct ContentView: View {
     @StateObject private var fileWatcher = FileWatcher()
     @State private var webView: WKWebView?
     @State private var eventMonitor: Any?
+    private let keyBindingHandler = KeyBindingHandler()
     
     var body: some View {
         VStack(spacing: 0) {
@@ -234,95 +337,90 @@ struct ContentView: View {
         }
     }
     
+    private func registerKeyBindings() {
+        // 矢印キー
+        keyBindingHandler.register(KeyBinding(keyCode: .downArrow)) { webView in
+            MarkdownWebView.scrollDown(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(keyCode: .upArrow)) { webView in
+            MarkdownWebView.scrollUp(webView)
+            return nil
+        }
+
+        // Home/End
+        keyBindingHandler.register(KeyBinding(keyCode: .home)) { webView in
+            MarkdownWebView.scrollToTop(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(keyCode: .end)) { webView in
+            MarkdownWebView.scrollToBottom(webView)
+            return nil
+        }
+
+        // Page Up/Down
+        keyBindingHandler.register(KeyBinding(keyCode: .pageUp)) { webView in
+            MarkdownWebView.scrollPageUp(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(keyCode: .pageDown)) { webView in
+            MarkdownWebView.scrollPageDown(webView)
+            return nil
+        }
+
+        // Space (with/without Shift)
+        keyBindingHandler.register(KeyBinding(keyCode: .space, requiresShift: false)) { webView in
+            MarkdownWebView.scrollPageDown(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(keyCode: .space, requiresShift: true)) { webView in
+            MarkdownWebView.scrollPageUp(webView)
+            return nil
+        }
+
+        // Vim-style navigation
+        keyBindingHandler.register(KeyBinding(key: "j")) { webView in
+            MarkdownWebView.scrollDown(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(key: "k")) { webView in
+            MarkdownWebView.scrollUp(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(key: "G")) { webView in
+            MarkdownWebView.scrollToBottom(webView)
+            return nil
+        }
+
+        // Emacs-style navigation
+        keyBindingHandler.register(KeyBinding(key: "n", modifiers: .control)) { webView in
+            MarkdownWebView.scrollDown(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(key: "p", modifiers: .control)) { webView in
+            MarkdownWebView.scrollUp(webView)
+            return nil
+        }
+
+        // Command-< / Command->
+        keyBindingHandler.register(KeyBinding(key: "<", modifiers: .command)) { webView in
+            MarkdownWebView.scrollToTop(webView)
+            return nil
+        }
+        keyBindingHandler.register(KeyBinding(key: ">", modifiers: .command)) { webView in
+            MarkdownWebView.scrollToBottom(webView)
+            return nil
+        }
+
+        // Command-C (コピー) と Command-A (全選択) はメニューに処理させる
+        // 注: これらは登録しないことで、デフォルトでパススルーされる
+    }
+
     private func setupKeyEventMonitor() {
+        registerKeyBindings()
+
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
-            // 修飾キーが押されていないかチェック（Shiftを除く）
-            let modifierFlags = event.modifierFlags.intersection([.command, .control, .option])
-            let isShiftPressed = event.modifierFlags.contains(.shift)
-            
-            // キーコードによる判定（特殊キー）
-            switch event.keyCode {
-            case 125: // Down Arrow
-                MarkdownWebView.scrollDown(webView)
-                return nil
-            case 126: // Up Arrow
-                MarkdownWebView.scrollUp(webView)
-                return nil
-            case 115: // Home
-                MarkdownWebView.scrollToTop(webView)
-                return nil
-            case 119: // End
-                MarkdownWebView.scrollToBottom(webView)
-                return nil
-            case 116: // Page Up
-                MarkdownWebView.scrollPageUp(webView)
-                return nil
-            case 121: // Page Down
-                MarkdownWebView.scrollPageDown(webView)
-                return nil
-            case 49: // Space
-                if isShiftPressed {
-                    MarkdownWebView.scrollPageUp(webView)
-                } else {
-                    MarkdownWebView.scrollPageDown(webView)
-                }
-                return nil
-            default:
-                break
-            }
-            
-            // G (Shift-g): 文書の末尾にジャンプ（大文字Gで判定）
-            if modifierFlags.isEmpty && event.characters == "G" {
-                MarkdownWebView.scrollToBottom(webView)
-                return nil // イベントを消費
-            }
-            
-            // j: 下に1行スクロール（修飾キーなし）
-            if modifierFlags.isEmpty && event.charactersIgnoringModifiers == "j" {
-                MarkdownWebView.scrollDown(webView)
-                return nil // イベントを消費
-            }
-            
-            // k: 上に1行スクロール（修飾キーなし）
-            if modifierFlags.isEmpty && event.charactersIgnoringModifiers == "k" {
-                MarkdownWebView.scrollUp(webView)
-                return nil // イベントを消費
-            }
-            
-            // Control-n: 下に1行スクロール
-            if event.modifierFlags.contains(.control) && event.charactersIgnoringModifiers == "n" {
-                MarkdownWebView.scrollDown(webView)
-                return nil // イベントを消費
-            }
-            
-            // Control-p: 上に1行スクロール
-            if event.modifierFlags.contains(.control) && event.charactersIgnoringModifiers == "p" {
-                MarkdownWebView.scrollUp(webView)
-                return nil // イベントを消費
-            }
-            
-            // Command-<: 文書の先頭にジャンプ
-            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "<" {
-                MarkdownWebView.scrollToTop(webView)
-                return nil // イベントを消費
-            }
-            
-            // Command->: 文書の末尾にジャンプ
-            if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == ">" {
-                MarkdownWebView.scrollToBottom(webView)
-                return nil // イベントを消費
-            }
-            
-            // Command-C (コピー) と Command-A (全選択) はWKWebViewに渡す
-            if event.modifierFlags.contains(.command) {
-                if event.charactersIgnoringModifiers == "c" || // コピー
-                   event.charactersIgnoringModifiers == "a" {  // 全選択
-                    // WKWebViewにイベントを渡す
-                    return event
-                }
-            }
-            
-            return event // その他のイベントは通常通り処理
+            return keyBindingHandler.handle(event, webView: webView)
         }
     }
     
