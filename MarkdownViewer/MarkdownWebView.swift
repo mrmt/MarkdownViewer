@@ -13,6 +13,97 @@ import Markdown
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     @Binding var webView: WKWebView?
+
+    // MARK: - HTML Styling
+
+    /// CSSスタイルシート（GitHub風のマークダウンスタイル）
+    private static let cssStyleSheet = """
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            padding: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+            color: #333;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+        h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+        h3 { font-size: 1.25em; }
+        code {
+            background-color: rgba(175, 184, 193, 0.2);
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.85em;
+        }
+        pre {
+            background-color: #f6f8fa;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        ul, ol {
+            padding-left: 2em;
+            margin: 0.5em 0;
+        }
+        li {
+            margin: 0.25em 0;
+        }
+        ul ul, ol ul, ul ol, ol ol {
+            margin: 0.25em 0;
+        }
+        p {
+            margin: 1em 0;
+        }
+        strong {
+            font-weight: 600;
+        }
+        blockquote {
+            border-left: 4px solid #dfe2e5;
+            padding-left: 1em;
+            margin-left: 0;
+            color: #6a737d;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        th, td {
+            border: 1px solid #dfe2e5;
+            padding: 6px 13px;
+        }
+        th {
+            background-color: #f6f8fa;
+            font-weight: 600;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #dfe2e5;
+            margin: 24px 0;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 1em 0;
+        }
+        """
     
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -120,124 +211,18 @@ struct MarkdownWebView: NSViewRepresentable {
     static func scrollToBottom(_ webView: WKWebView?) {
         executeScroll(webView, script: "window.scrollTo(0, document.body.scrollHeight);")
     }
-    
-    private func renderMarkdownToHTML(_ markdown: String) -> (String, URL?) {
-        let document = Document(parsing: markdown)
-        var formatter = HTMLFormatter()
-        formatter.visit(document)
-        let htmlContent = formatter.result
-        let hasMermaid = formatter.hasMermaid
-        
-        // baseURLを設定（リソースを読み込むため）
-        var baseURL: URL? = nil
-        if let resourcePath = Bundle.main.resourcePath {
-            baseURL = URL(fileURLWithPath: resourcePath)
-        }
-        
-        // mermaid.jsをバンドルから読み込む
-        var mermaidScript = ""
-        if hasMermaid {
-            // baseURLを使用してスクリプトタグで読み込む
-            mermaidScript = "<script src=\"mermaid.min.js\"></script>"
-        }
-        
-        let html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            \(mermaidScript)
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-                    line-height: 1.6;
-                    padding: 40px;
-                    max-width: 900px;
-                    margin: 0 auto;
-                    color: #333;
-                }
-                h1, h2, h3, h4, h5, h6 {
-                    margin-top: 24px;
-                    margin-bottom: 16px;
-                    font-weight: 600;
-                    line-height: 1.25;
-                }
-                h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
-                h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
-                h3 { font-size: 1.25em; }
-                code {
-                    background-color: rgba(175, 184, 193, 0.2);
-                    padding: 0.2em 0.4em;
-                    border-radius: 3px;
-                    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-                    font-size: 0.85em;
-                }
-                pre {
-                    background-color: #f6f8fa;
-                    padding: 16px;
-                    border-radius: 6px;
-                    overflow: auto;
-                }
-                pre code {
-                    background-color: transparent;
-                    padding: 0;
-                }
-                a {
-                    color: #0366d6;
-                    text-decoration: none;
-                }
-                a:hover {
-                    text-decoration: underline;
-                }
-                ul, ol {
-                    padding-left: 2em;
-                    margin: 0.5em 0;
-                }
-                li {
-                    margin: 0.25em 0;
-                }
-                ul ul, ol ul, ul ol, ol ol {
-                    margin: 0.25em 0;
-                }
-                p {
-                    margin: 1em 0;
-                }
-                strong {
-                    font-weight: 600;
-                }
-                blockquote {
-                    border-left: 4px solid #dfe2e5;
-                    padding-left: 1em;
-                    margin-left: 0;
-                    color: #6a737d;
-                }
-                table {
-                    border-collapse: collapse;
-                    width: 100%;
-                    margin: 1em 0;
-                }
-                th, td {
-                    border: 1px solid #dfe2e5;
-                    padding: 6px 13px;
-                }
-                th {
-                    background-color: #f6f8fa;
-                    font-weight: 600;
-                }
-                hr {
-                    border: 0;
-                    border-top: 1px solid #dfe2e5;
-                    margin: 24px 0;
-                }
-                .mermaid {
-                    text-align: center;
-                    margin: 1em 0;
-                }
-            </style>
-        </head>
-        <body>
-            \(htmlContent)
-            \(hasMermaid ? """
+
+    // MARK: - HTML Generation Helpers
+
+    /// Mermaid.jsのスクリプトタグを生成
+    private func buildMermaidScriptTag(enabled: Bool) -> String {
+        enabled ? "<script src=\"mermaid.min.js\"></script>" : ""
+    }
+
+    /// Mermaid.jsの初期化スクリプトを生成
+    private func buildMermaidInitializationScript(enabled: Bool) -> String {
+        guard enabled else { return "" }
+        return """
             <script>
                 if (typeof mermaid !== 'undefined') {
                     mermaid.initialize({ startOnLoad: true, theme: 'default' });
@@ -245,11 +230,49 @@ struct MarkdownWebView: NSViewRepresentable {
                     console.error('mermaid.jsが読み込まれませんでした');
                 }
             </script>
-            """ : "")
+            """
+    }
+
+    /// 完全なHTMLドキュメントを構築
+    private func buildHTMLDocument(content: String, mermaidEnabled: Bool) -> String {
+        let mermaidScriptTag = buildMermaidScriptTag(enabled: mermaidEnabled)
+        let mermaidInitScript = buildMermaidInitializationScript(enabled: mermaidEnabled)
+
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            \(mermaidScriptTag)
+            <style>
+                \(Self.cssStyleSheet)
+            </style>
+        </head>
+        <body>
+            \(content)
+            \(mermaidInitScript)
         </body>
         </html>
         """
-        
+    }
+
+    private func renderMarkdownToHTML(_ markdown: String) -> (String, URL?) {
+        // Markdownをパースしてhtml生成
+        let document = Document(parsing: markdown)
+        var formatter = HTMLFormatter()
+        formatter.visit(document)
+        let htmlContent = formatter.result
+        let hasMermaid = formatter.hasMermaid
+
+        // baseURLを設定（リソースを読み込むため）
+        let baseURL: URL? = {
+            guard let resourcePath = Bundle.main.resourcePath else { return nil }
+            return URL(fileURLWithPath: resourcePath)
+        }()
+
+        // 完全なHTMLドキュメントを構築
+        let html = buildHTMLDocument(content: htmlContent, mermaidEnabled: hasMermaid)
+
         return (html, baseURL)
     }
 }
