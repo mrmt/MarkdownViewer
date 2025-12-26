@@ -110,77 +110,7 @@ class KeyBindingHandler {
     }
 }
 
-// MARK: - File Watcher
-
-// ファイル監視クラス（タイマーベース）
-class FileWatcher: ObservableObject {
-    private var timer: Timer?
-    private var filePath: String?
-    private var onChange: (() -> Void)?
-    private var lastModificationDate: Date?
-    
-    func startWatching(path: String, onChange: @escaping () -> Void) {
-        stopWatching()
-        
-        self.filePath = path
-        self.onChange = onChange
-        
-        // 現在の最終更新時刻を取得
-        updateLastModificationDate()
-        
-        // 0.5秒ごとにファイルの変更をチェック
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.checkFileAndNotify()
-        }
-    }
-    
-    private func updateLastModificationDate() {
-        guard let filePath = filePath else { return }
-        do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
-            lastModificationDate = attributes[.modificationDate] as? Date
-        } catch {
-            // エラーは無視（ファイルが一時的にアクセスできない可能性がある）
-        }
-    }
-    
-    private func checkFileAndNotify() {
-        guard let filePath = filePath,
-              FileManager.default.fileExists(atPath: filePath) else {
-            return
-        }
-        
-        do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
-            let currentModificationDate = attributes[.modificationDate] as? Date
-            
-            if let lastDate = lastModificationDate,
-               let currentDate = currentModificationDate,
-               currentDate > lastDate {
-                lastModificationDate = currentDate
-                
-                // メインスレッドで更新を実行
-                DispatchQueue.main.async {
-                    self.onChange?()
-                }
-            }
-        } catch {
-            // エラーは無視
-        }
-    }
-    
-    func stopWatching() {
-        timer?.invalidate()
-        timer = nil
-        filePath = nil
-        onChange = nil
-        lastModificationDate = nil
-    }
-    
-    deinit {
-        stopWatching()
-    }
-}
+// MARK: - Content View
 
 struct ContentView: View {
     @ObservedObject var documentManager: DocumentManager
