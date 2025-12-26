@@ -13,6 +13,7 @@
 		A1000003000000000000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004000000000000001 /* ContentView.swift */; };
 		A1000005000000000000001 /* MarkdownWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006000000000000001 /* MarkdownWebView.swift */; };
 		A1000020000000000000001 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = A1000021000000000000001 /* AppIcon.icns */; };
+		A1000025000000000000001 /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000026000000000000001 /* FileWatcher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +24,7 @@
 		A1000007000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1000008000000000000001 /* MarkdownViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MarkdownViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000021000000000000001 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		A1000026000000000000001 /* FileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -49,6 +51,7 @@
 				A1000002000000000000001 /* MarkdownViewerApp.swift */,
 				A1000004000000000000001 /* ContentView.swift */,
 				A1000006000000000000001 /* MarkdownWebView.swift */,
+				A1000026000000000000001 /* FileWatcher.swift */,
 				9FAB96072EBDF0B500BD1FEA /* mermaid.min.js */,
 				A1000007000000000000001 /* Info.plist */,
 				A1000021000000000000001 /* AppIcon.icns */,
@@ -136,6 +139,7 @@
 				A1000001000000000000001 /* MarkdownViewerApp.swift in Sources */,
 				A1000003000000000000001 /* ContentView.swift in Sources */,
 				A1000005000000000000001 /* MarkdownWebView.swift in Sources */,
+				A1000025000000000000001 /* FileWatcher.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
