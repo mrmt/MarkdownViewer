@@ -90,34 +90,35 @@ struct MarkdownWebView: NSViewRepresentable {
     
     
     // スクロール操作用のメソッド
+
+    /// WebViewでJavaScriptスクロールコマンドを実行する共通ヘルパー
+    private static func executeScroll(_ webView: WKWebView?, script: String) {
+        guard let webView = webView else { return }
+        webView.evaluateJavaScript(script)
+    }
+
     static func scrollDown(_ webView: WKWebView?, lineHeight: CGFloat = 20) {
-        guard let webView = webView else { return }
-        webView.evaluateJavaScript("window.scrollBy(0, \(lineHeight));")
+        executeScroll(webView, script: "window.scrollBy(0, \(lineHeight));")
     }
-    
+
     static func scrollUp(_ webView: WKWebView?, lineHeight: CGFloat = 20) {
-        guard let webView = webView else { return }
-        webView.evaluateJavaScript("window.scrollBy(0, -\(lineHeight));")
+        executeScroll(webView, script: "window.scrollBy(0, -\(lineHeight));")
     }
-    
+
     static func scrollPageDown(_ webView: WKWebView?) {
-        guard let webView = webView else { return }
-        webView.evaluateJavaScript("window.scrollBy(0, window.innerHeight);")
+        executeScroll(webView, script: "window.scrollBy(0, window.innerHeight);")
     }
-    
+
     static func scrollPageUp(_ webView: WKWebView?) {
-        guard let webView = webView else { return }
-        webView.evaluateJavaScript("window.scrollBy(0, -window.innerHeight);")
+        executeScroll(webView, script: "window.scrollBy(0, -window.innerHeight);")
     }
-    
+
     static func scrollToTop(_ webView: WKWebView?) {
-        guard let webView = webView else { return }
-        webView.evaluateJavaScript("window.scrollTo(0, 0);")
+        executeScroll(webView, script: "window.scrollTo(0, 0);")
     }
-    
+
     static func scrollToBottom(_ webView: WKWebView?) {
-        guard let webView = webView else { return }
-        webView.evaluateJavaScript("window.scrollTo(0, document.body.scrollHeight);")
+        executeScroll(webView, script: "window.scrollTo(0, document.body.scrollHeight);")
     }
     
     private func renderMarkdownToHTML(_ markdown: String) -> (String, URL?) {
