@@ -308,13 +308,13 @@ struct HTMLFormatter: MarkupWalker {
     // MARK: - Change Detection Helpers
 
     private func isChanged(_ markup: Markup) -> Bool {
-        guard let range = markup.sourceRange else { return false }
+        guard let range = markup.range else { return false }
         let lines = range.lowerBound.line...range.upperBound.line
         return !changedLines.isDisjoint(with: lines)
     }
 
     private func isFullyChanged(_ markup: Markup) -> Bool {
-        guard let range = markup.sourceRange else { return false }
+        guard let range = markup.range else { return false }
         let lines = range.lowerBound.line...range.upperBound.line
         return lines.allSatisfy { changedLines.contains($0) }
     }
