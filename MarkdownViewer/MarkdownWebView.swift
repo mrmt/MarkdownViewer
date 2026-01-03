@@ -12,7 +12,14 @@ import Markdown
 
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
+    let changedLines: Set<Int>
     @Binding var webView: WKWebView?
+
+    init(markdown: String, changedLines: Set<Int> = [], webView: Binding<WKWebView?>) {
+        self.markdown = markdown
+        self.changedLines = changedLines
+        self._webView = webView
+    }
 
     // MARK: - HTML Styling
 
@@ -103,6 +110,10 @@ struct MarkdownWebView: NSViewRepresentable {
             text-align: center;
             margin: 1em 0;
         }
+        .changed {
+            background-color: #fff5b1;
+            border-radius: 3px;
+        }
         """
     
     func makeNSView(context: Context) -> WKWebView {
@@ -130,7 +141,7 @@ struct MarkdownWebView: NSViewRepresentable {
             
             // メインスレッドでHTMLをロード
             DispatchQueue.main.async {
-                let (html, baseURL) = self.renderMarkdownToHTML(self.markdown)
+                let (html, baseURL) = self.renderMarkdownToHTML(self.markdown, changedLines: self.changedLines)
                 nsView.loadHTMLString(html, baseURL: baseURL)
             }
         }
@@ -256,10 +267,10 @@ struct MarkdownWebView: NSViewRepresentable {
         """
     }
 
-    private func renderMarkdownToHTML(_ markdown: String) -> (String, URL?) {
+    private func renderMarkdownToHTML(_ markdown: String, changedLines: Set<Int>) -> (String, URL?) {
         // Markdownをパースしてhtml生成
         let document = Document(parsing: markdown)
-        var formatter = HTMLFormatter()
+        var formatter = HTMLFormatter(changedLines: changedLines)
         formatter.visit(document)
         let htmlContent = formatter.result
         let hasMermaid = formatter.hasMermaid
@@ -282,6 +293,11 @@ struct HTMLFormatter: MarkupWalker {
     var result = ""
     var isInListItem = false
     var hasMermaid = false
+    var changedLines: Set<Int>
+
+    init(changedLines: Set<Int> = []) {
+        self.changedLines = changedLines
+    }
     
     static func format(_ markup: Markup) -> String {
         var formatter = HTMLFormatter()
@@ -289,20 +305,43 @@ struct HTMLFormatter: MarkupWalker {
         return formatter.result
     }
     
+    // MARK: - Change Detection Helpers
+
+    private func isChanged(_ markup: Markup) -> Bool {
+        guard let range = markup.range else { return false }
+        let lines = range.lowerBound.line...range.upperBound.line
+        return !changedLines.isDisjoint(with: lines)
+    }
+
+    private func isFullyChanged(_ markup: Markup) -> Bool {
+        guard let range = markup.range else { return false }
+        let lines = range.lowerBound.line...range.upperBound.line
+        return lines.allSatisfy { changedLines.contains($0) }
+    }
+
+    private func styleClass(_ markup: Markup, baseClass: String = "", fullCheck: Bool = false) -> String {
+        let changed = fullCheck ? isFullyChanged(markup) : isChanged(markup)
+        var classes = [String]()
+        if !baseClass.isEmpty { classes.append(baseClass) }
+        if changed { classes.append("changed") }
+
+        return classes.isEmpty ? "" : " class=\"\(classes.joined(separator: " "))\""
+    }
+
     mutating func visitDocument(_ document: Markdown.Document) {
         descendInto(document)
     }
     
     mutating func visitHeading(_ heading: Markdown.Heading) {
         let level = heading.level
-        result += "<h\(level)>"
+        result += "<h\(level)\(styleClass(heading))>"
         descendInto(heading)
         result += "</h\(level)>"
     }
     
     mutating func visitParagraph(_ paragraph: Markdown.Paragraph) {
         if !isInListItem {
-            result += "<p>"
+            result += "<p\(styleClass(paragraph))>"
         }
         descendInto(paragraph)
         if !isInListItem {
@@ -338,7 +377,8 @@ struct HTMLFormatter: MarkupWalker {
             result += codeBlock.code.htmlEscaped
             result += "</div>"
         } else {
-            result += "<pre><code"
+            // Apply highlighting to the <pre> tag for code blocks
+            result += "<pre\(styleClass(codeBlock))><code"
             if !language.isEmpty {
                 result += " class=\"language-\(language.htmlEscaped)\""
             }
@@ -367,7 +407,8 @@ struct HTMLFormatter: MarkupWalker {
     }
     
     mutating func visitListItem(_ listItem: Markdown.ListItem) {
-        result += "<li>"
+        // Use fullCheck (isFullyChanged) for ListItems to avoid highlighting whole complex items
+        result += "<li\(styleClass(listItem, fullCheck: true))>"
         let wasInListItem = isInListItem
         isInListItem = true
         descendInto(listItem)
@@ -382,7 +423,7 @@ struct HTMLFormatter: MarkupWalker {
     }
     
     mutating func visitThematicBreak(_ thematicBreak: Markdown.ThematicBreak) {
-        result += "<hr>"
+        result += "<hr\(styleClass(thematicBreak))>"
     }
     
     mutating func visitLineBreak(_ lineBreak: Markdown.LineBreak) {
@@ -412,7 +453,7 @@ struct HTMLFormatter: MarkupWalker {
     }
     
     mutating func visitTableRow(_ tableRow: Markdown.Table.Row) {
-        result += "<tr>"
+        result += "<tr\(styleClass(tableRow))>"
         descendInto(tableRow)
         result += "</tr>"
     }
