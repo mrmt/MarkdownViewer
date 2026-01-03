@@ -115,6 +115,7 @@ class KeyBindingHandler {
 struct ContentView: View {
     @ObservedObject var documentManager: DocumentManager
     @State private var markdownContent: String = ""
+    @State private var changedLines: Set<Int> = []
     @State private var filePath: String = ""
     @State private var isDragOver = false
     @StateObject private var fileWatcher = FileWatcher()
@@ -165,7 +166,7 @@ struct ContentView: View {
                         .padding(40)
                 )
             } else {
-                MarkdownWebView(markdown: markdownContent, webView: $webView)
+                MarkdownWebView(markdown: markdownContent, changedLines: changedLines, webView: $webView)
             }
         }
         .onDrop(of: ["public.file-url"], isTargeted: $isDragOver) { providers in
@@ -247,6 +248,7 @@ struct ContentView: View {
             let content = try String(contentsOfFile: path, encoding: .utf8)
             markdownContent = content
             filePath = path
+            changedLines = [] // 新規読み込み時は差分なし
             
             // ファイルの変更を監視開始
             fileWatcher.startWatching(path: path) { [self] in
@@ -261,6 +263,11 @@ struct ContentView: View {
         guard !filePath.isEmpty else { return }
         do {
             let content = try String(contentsOfFile: filePath, encoding: .utf8)
+
+            // 差分計算
+            let changes = DiffCalculator.calculateChangedLines(oldContent: markdownContent, newContent: content)
+            changedLines = changes
+
             markdownContent = content
         } catch {
             print("ファイルの再読み込みに失敗: \(error)")
