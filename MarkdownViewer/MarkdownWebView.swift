@@ -116,6 +116,17 @@ struct MarkdownWebView: NSViewRepresentable {
             text-align: center;
             margin: 1em 0;
         }
+        .frontmatter {
+            background-color: #f7f0ff;
+            border: 1px solid #eadcff;
+            border-radius: 6px;
+            color: #5f4b8b;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 0 0 24px 0;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
         .changed {
             background-color: #fff5b1;
             border-radius: 3px;
@@ -158,7 +169,6 @@ struct MarkdownWebView: NSViewRepresentable {
             } else {
                 context.coordinator.pendingFragment = nil
             }
-
             // メインスレッドでHTMLをロード
             DispatchQueue.main.async {
                 let (html, baseURL) = self.renderMarkdownToHTML(self.markdown, changedLines: self.changedLines)
@@ -397,12 +407,16 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     private func renderMarkdownToHTML(_ markdown: String, changedLines: Set<Int>) -> (String, URL?) {
+        let (frontmatter, markdownBody) = FrontmatterRenderer.split(markdown)
+
         // Markdownをパースしてhtml生成
-        let document = Document(parsing: markdown)
+        let document = Document(parsing: markdownBody)
         var formatter = HTMLFormatter(changedLines: changedLines, baseFileURL: fileDirectoryURL)
         formatter.visit(document)
         let htmlContent = formatter.result
         let hasMermaid = formatter.hasMermaid
+        let frontmatterHTML = frontmatter.map(FrontmatterRenderer.html(for:)) ?? ""
+        let contentSections = [frontmatterHTML, htmlContent].filter { !$0.isEmpty }
 
         // baseURLを設定（リソースを読み込むため）
         let baseURL: URL? = {
@@ -411,9 +425,46 @@ struct MarkdownWebView: NSViewRepresentable {
         }()
 
         // 完全なHTMLドキュメントを構築
-        let html = buildHTMLDocument(content: htmlContent, mermaidEnabled: hasMermaid)
+        let html = buildHTMLDocument(content: contentSections.joined(separator: "\n"), mermaidEnabled: hasMermaid)
 
         return (html, baseURL)
+    }
+}
+
+enum FrontmatterRenderer {
+    static func split(_ markdown: String) -> (frontmatter: String?, body: String) {
+        guard let firstLineRange = nextLineRange(in: markdown, startingAt: markdown.startIndex),
+              String(markdown[firstLineRange]).trimmingCharacters(in: .newlines) == "---" else {
+            return (nil, markdown)
+        }
+
+        var scanIndex = firstLineRange.upperBound
+
+        while let lineRange = nextLineRange(in: markdown, startingAt: scanIndex) {
+            let line = String(markdown[lineRange]).trimmingCharacters(in: .newlines)
+            if line == "---" || line == "..." {
+                let frontmatter = String(markdown[..<lineRange.upperBound])
+                let body = lineRange.upperBound < markdown.endIndex ? String(markdown[lineRange.upperBound...]) : ""
+                return (frontmatter, body)
+            }
+            scanIndex = lineRange.upperBound
+        }
+
+        return (nil, markdown)
+    }
+
+    static func html(for frontmatter: String) -> String {
+        "<pre class=\"frontmatter\">\(frontmatter.htmlEscaped)</pre>"
+    }
+
+    private static func nextLineRange(in string: String, startingAt index: String.Index) -> Range<String.Index>? {
+        guard index < string.endIndex else { return nil }
+
+        if let newlineIndex = string[index...].firstIndex(of: "\n") {
+            return index..<string.index(after: newlineIndex)
+        }
+
+        return index..<string.endIndex
     }
 }
 
