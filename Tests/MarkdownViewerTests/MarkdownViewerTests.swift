@@ -145,3 +145,77 @@ final class DiffCalculatorTests: XCTestCase {
         XCTAssertEqual(changes, [2, 4])
     }
 }
+
+//
+// HTMLFormatterLinkTests.swift
+// MarkdownViewer
+//
+// リンク解決のテスト
+//
+
+import XCTest
+import Markdown
+@testable import MarkdownViewer
+
+final class HTMLFormatterLinkTests: XCTestCase {
+
+    private func render(_ markdown: String, baseFileURL: URL? = nil) -> String {
+        let document = Document(parsing: markdown)
+        var formatter = HTMLFormatter(changedLines: [], baseFileURL: baseFileURL)
+        formatter.visit(document)
+        return formatter.result
+    }
+
+    func testHttpsLinkPreserved() {
+        let html = render("[link](https://example.com/path)", baseFileURL: URL(fileURLWithPath: "/tmp"))
+        XCTAssertTrue(html.contains("href=\"https://example.com/path\""), html)
+    }
+
+    func testRelativeLinkResolvedAgainstBaseURL() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](sub/foo.md)", baseFileURL: base)
+        XCTAssertTrue(html.contains("href=\"file:///tmp/docs/sub/foo.md\""), html)
+    }
+
+    func testDotSlashRelativeLinkResolved() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](./foo.md)", baseFileURL: base)
+        XCTAssertTrue(html.contains("href=\"file:///tmp/docs/foo.md\""), html)
+    }
+
+    func testParentRelativeLinkResolved() {
+        let base = URL(fileURLWithPath: "/tmp/docs/sub/")
+        let html = render("[link](../foo.md)", baseFileURL: base)
+        XCTAssertTrue(html.contains("href=\"file:///tmp/docs/foo.md\""), html)
+    }
+
+    func testAbsolutePathResolvedAsFileURL() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](/abs/foo.md)", baseFileURL: base)
+        XCTAssertTrue(html.contains("href=\"file:///abs/foo.md\""), html)
+    }
+
+    func testFragmentOnlyLinkPreserved() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](#section)", baseFileURL: base)
+        XCTAssertTrue(html.contains("href=\"#section\""), html)
+    }
+
+    func testMailtoLinkPreserved() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[mail](mailto:foo@example.com)", baseFileURL: base)
+        XCTAssertTrue(html.contains("href=\"mailto:foo@example.com\""), html)
+    }
+
+    func testRelativeLinkUnchangedWhenBaseURLMissing() {
+        let html = render("[link](./foo.md)", baseFileURL: nil)
+        XCTAssertTrue(html.contains("href=\"./foo.md\""), html)
+    }
+
+    func testPercentEncodedPathResolved() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](foo%20bar.md)", baseFileURL: base)
+        // space should be URL-encoded as %20 in the absolute URL
+        XCTAssertTrue(html.contains("href=\"file:///tmp/docs/foo%20bar.md\""), html)
+    }
+}

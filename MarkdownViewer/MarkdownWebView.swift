@@ -13,11 +13,13 @@ import Markdown
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let changedLines: Set<Int>
+    let fileDirectoryURL: URL?
     @Binding var webView: WKWebView?
 
-    init(markdown: String, changedLines: Set<Int> = [], webView: Binding<WKWebView?>) {
+    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, webView: Binding<WKWebView?>) {
         self.markdown = markdown
         self.changedLines = changedLines
+        self.fileDirectoryURL = fileDirectoryURL
         self._webView = webView
     }
 
@@ -153,7 +155,42 @@ struct MarkdownWebView: NSViewRepresentable {
     
     class Coordinator: NSObject, WKNavigationDelegate {
         var savedScrollPosition: CGPoint?
-        
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            // リンククリック以外（最初のHTMLロードやフレーム読み込み）は許可
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+
+            decisionHandler(.cancel)
+            handleLinkClick(url: url)
+        }
+
+        private func handleLinkClick(url: URL) {
+            let scheme = url.scheme?.lowercased()
+            switch scheme {
+            case "http", "https":
+                NSWorkspace.shared.open(url)
+            case "file":
+                openLocalMarkdownFile(url: url)
+            default:
+                // その他スキーム（mailto 等）はシステムに委ねる
+                NSWorkspace.shared.open(url)
+            }
+        }
+
+        private func openLocalMarkdownFile(url: URL) {
+            let ext = url.pathExtension.lowercased()
+            guard ext == "md" || ext == "markdown",
+                  FileManager.default.isReadableFile(atPath: url.path) else {
+                // readできない or markdownでない → 何もしない
+                return
+            }
+            NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             // Navigation completed successfully - スクロール位置を復元
             if let position = savedScrollPosition {
@@ -164,17 +201,17 @@ struct MarkdownWebView: NSViewRepresentable {
                 savedScrollPosition = nil
             }
         }
-        
+
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             // Navigation failed
             savedScrollPosition = nil
         }
-        
+
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             // Provisional navigation failed
             savedScrollPosition = nil
         }
-        
+
         private func restoreScrollPosition(_ webView: WKWebView, position: CGPoint) {
             let script = "window.scrollTo(\(position.x), \(position.y));"
             webView.evaluateJavaScript(script, completionHandler: nil)
@@ -270,7 +307,7 @@ struct MarkdownWebView: NSViewRepresentable {
     private func renderMarkdownToHTML(_ markdown: String, changedLines: Set<Int>) -> (String, URL?) {
         // Markdownをパースしてhtml生成
         let document = Document(parsing: markdown)
-        var formatter = HTMLFormatter(changedLines: changedLines)
+        var formatter = HTMLFormatter(changedLines: changedLines, baseFileURL: fileDirectoryURL)
         formatter.visit(document)
         let htmlContent = formatter.result
         let hasMermaid = formatter.hasMermaid
@@ -294,15 +331,41 @@ struct HTMLFormatter: MarkupWalker {
     var isInListItem = false
     var hasMermaid = false
     var changedLines: Set<Int>
+    var baseFileURL: URL?
 
-    init(changedLines: Set<Int> = []) {
+    init(changedLines: Set<Int> = [], baseFileURL: URL? = nil) {
         self.changedLines = changedLines
+        self.baseFileURL = baseFileURL
     }
-    
+
     static func format(_ markup: Markup) -> String {
         var formatter = HTMLFormatter()
         formatter.visit(markup)
         return formatter.result
+    }
+
+    // MARK: - Link Resolution
+
+    /// マークダウン内のリンク先を解決し、相対パスをmarkdownファイル基準の絶対URLに変換する
+    private func resolveLinkDestination(_ destination: String) -> String {
+        guard !destination.isEmpty else { return "" }
+
+        // fragment のみ (#section など) はそのまま
+        if destination.hasPrefix("#") {
+            return destination
+        }
+
+        // 絶対URL (scheme付き) はそのまま
+        if let url = URL(string: destination), url.scheme != nil {
+            return destination
+        }
+
+        // 相対パス → markdownファイルのディレクトリ基準で絶対化
+        guard let baseURL = baseFileURL else { return destination }
+
+        let decodedPath = destination.removingPercentEncoding ?? destination
+        let resolved = URL(fileURLWithPath: decodedPath, relativeTo: baseURL).standardizedFileURL
+        return resolved.absoluteString
     }
     
     // MARK: - Change Detection Helpers
@@ -389,7 +452,8 @@ struct HTMLFormatter: MarkupWalker {
     }
     
     mutating func visitLink(_ link: Markdown.Link) {
-        result += "<a href=\"\(link.destination ?? "")\">"
+        let href = resolveLinkDestination(link.destination ?? "")
+        result += "<a href=\"\(href.htmlEscaped)\">"
         descendInto(link)
         result += "</a>"
     }

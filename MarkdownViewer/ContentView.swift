@@ -166,7 +166,12 @@ struct ContentView: View {
                         .padding(40)
                 )
             } else {
-                MarkdownWebView(markdown: markdownContent, changedLines: changedLines, webView: $webView)
+                MarkdownWebView(
+                    markdown: markdownContent,
+                    changedLines: changedLines,
+                    fileDirectoryURL: filePath.isEmpty ? nil : URL(fileURLWithPath: filePath).deletingLastPathComponent(),
+                    webView: $webView
+                )
             }
         }
         .onDrop(of: ["public.file-url"], isTargeted: $isDragOver) { providers in
