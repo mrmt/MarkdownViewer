@@ -117,6 +117,7 @@ struct ContentView: View {
     @State private var markdownContent: String = ""
     @State private var changedLines: Set<Int> = []
     @State private var filePath: String = ""
+    @State private var initialFragment: String? = nil
     @State private var isDragOver = false
     @StateObject private var fileWatcher = FileWatcher()
     @State private var webView: WKWebView?
@@ -166,7 +167,13 @@ struct ContentView: View {
                         .padding(40)
                 )
             } else {
-                MarkdownWebView(markdown: markdownContent, changedLines: changedLines, webView: $webView)
+                MarkdownWebView(
+                    markdown: markdownContent,
+                    changedLines: changedLines,
+                    fileDirectoryURL: filePath.isEmpty ? nil : URL(fileURLWithPath: filePath).deletingLastPathComponent(),
+                    initialFragment: $initialFragment,
+                    webView: $webView
+                )
             }
         }
         .onDrop(of: ["public.file-url"], isTargeted: $isDragOver) { providers in
@@ -174,7 +181,7 @@ struct ContentView: View {
         }
         .onChange(of: documentManager.fileURL) { newURL in
             if let url = newURL {
-                loadMarkdownFile(path: url.path)
+                loadMarkdownFile(url: url)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openFile)) { _ in
@@ -186,7 +193,7 @@ struct ContentView: View {
         .onAppear {
             // アプリ起動時にファイルパスが指定されていれば読み込む
             if let url = documentManager.fileURL {
-                loadMarkdownFile(path: url.path)
+                loadMarkdownFile(url: url)
                 // documentManager の URL をクリアして、次回以降の onChange を正しく検知
                 DispatchQueue.main.async {
                     documentManager.fileURL = nil
@@ -243,13 +250,19 @@ struct ContentView: View {
         return true
     }
     
-    private func loadMarkdownFile(path: String) {
+    /// fragment 付き URL を渡すと、ロード完了時に該当見出しへスクロールする
+    private func loadMarkdownFile(url: URL) {
+        loadMarkdownFile(path: url.path, fragment: url.fragment)
+    }
+
+    private func loadMarkdownFile(path: String, fragment: String? = nil) {
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
             markdownContent = content
             filePath = path
             changedLines = [] // 新規読み込み時は差分なし
-            
+            initialFragment = fragment
+
             // ファイルの変更を監視開始
             fileWatcher.startWatching(path: path) { [self] in
                 self.reloadMarkdownFile()

@@ -13,11 +13,17 @@ import Markdown
 struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let changedLines: Set<Int>
+    let fileDirectoryURL: URL?
+    /// 読み込み完了時にスクロール先としたい見出しのフラグメント (例: "inner" → #inner)
+    /// one-shot: コンポーネントが消費したら親側で nil にクリアされる
+    @Binding var initialFragment: String?
     @Binding var webView: WKWebView?
 
-    init(markdown: String, changedLines: Set<Int> = [], webView: Binding<WKWebView?>) {
+    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, initialFragment: Binding<String?> = .constant(nil), webView: Binding<WKWebView?>) {
         self.markdown = markdown
         self.changedLines = changedLines
+        self.fileDirectoryURL = fileDirectoryURL
+        self._initialFragment = initialFragment
         self._webView = webView
     }
 
@@ -129,17 +135,20 @@ struct MarkdownWebView: NSViewRepresentable {
     
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        // リンククリックをJS経由でSwiftに通知するためのメッセージハンドラを登録
+        configuration.userContentController.add(context.coordinator, name: "linkClicked")
+
         let webView = FocusableWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
-        
+
         // テキスト選択とコピーを有効にする
         webView.allowsMagnification = true
-        
+
         // WKWebViewの参照を保存
         DispatchQueue.main.async {
             self.webView = webView
         }
-        
+
         return webView
     }
     
@@ -148,6 +157,17 @@ struct MarkdownWebView: NSViewRepresentable {
         nsView.evaluateJavaScript("window.pageYOffset") { result, error in
             if let yOffset = result as? CGFloat {
                 context.coordinator.savedScrollPosition = CGPoint(x: 0, y: yOffset)
+            }
+            // fragment (#id) 指定がある場合はスクロール位置復元より優先する。
+            // 一度消費したら親側 state をクリアして、以降の自動リロード等で
+            // 再度スクロールされないようにする (one-shot)
+            if let fragment = self.initialFragment {
+                context.coordinator.pendingFragment = fragment
+                DispatchQueue.main.async {
+                    self.initialFragment = nil
+                }
+            } else {
+                context.coordinator.pendingFragment = nil
             }
             // メインスレッドでHTMLをロード
             DispatchQueue.main.async {
@@ -161,10 +181,95 @@ struct MarkdownWebView: NSViewRepresentable {
         Coordinator()
     }
     
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var savedScrollPosition: CGPoint?
+        /// 次のロード完了時にスクロール先としたい要素のid (fragment)。一度適用したらnilに戻す
+        var pendingFragment: String?
+
+        // JSから送られたリンククリックを処理
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "linkClicked",
+                  let href = message.body as? String,
+                  let url = URL(string: href) else {
+                return
+            }
+            handleLinkClick(url: url)
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            // リンククリックは基本的にJSインターセプタ側でpreventDefaultされるため、
+            // ここには届かない。保険として実装するフォールバック:
+            //   - ページ内アンカー (同一ドキュメント内fragment) → WebKitの既定動作を許可
+            //   - それ以外の linkActivated → cancel してSwift側で処理
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+
+            if isSameDocumentFragmentNavigation(target: url, current: webView.url) {
+                decisionHandler(.allow)
+                return
+            }
+
+            decisionHandler(.cancel)
+            handleLinkClick(url: url)
+        }
+
+        /// 現在表示中のドキュメントと scheme/host/path が同じで fragment のみ異なる navigation かどうか
+        private func isSameDocumentFragmentNavigation(target: URL, current: URL?) -> Bool {
+            guard target.fragment != nil, let current = current else { return false }
+            return target.scheme == current.scheme
+                && target.host == current.host
+                && target.path == current.path
+        }
+
+        private func handleLinkClick(url: URL) {
+            let scheme = url.scheme?.lowercased()
+            switch scheme {
+            case "http", "https":
+                NSWorkspace.shared.open(url)
+            case "file":
+                openLocalMarkdownFile(url: url)
+            default:
+                // その他スキーム（mailto 等）はシステムに委ねる
+                NSWorkspace.shared.open(url)
+            }
+        }
+
+        private func openLocalMarkdownFile(url: URL) {
+            // URL.pathExtension/path は fragment/query を含まないので、拡張子・存在判定は url そのもので安全に行える
+            let ext = url.pathExtension.lowercased()
+            guard ext == "md" || ext == "markdown",
+                  FileManager.default.isReadableFile(atPath: url.path) else {
+                // readできない or markdownでない → 何もしない
+                return
+            }
+
+            // query は現状使わないので除去。fragment は受信側で見出しスクロールに利用するため保持する
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.query = nil
+            let forwardURL = components?.url ?? url
+
+            NotificationCenter.default.post(name: .openFileInNewWindow, object: forwardURL)
+        }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // fragment (ページ内アンカー) が指定されている場合はそこにスクロールする (位置復元より優先)
+            if let fragment = pendingFragment, !fragment.isEmpty {
+                pendingFragment = nil
+                savedScrollPosition = nil
+                // JSコンテキストへ埋め込むため文字列エスケープ
+                let escaped = fragment
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "'", with: "\\'")
+                let script = "document.getElementById('\(escaped)')?.scrollIntoView()"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                }
+                return
+            }
+
             // Navigation completed successfully - スクロール位置を復元
             if let position = savedScrollPosition {
                 // DOMの描画完了を待つため、少し遅延させて復元
@@ -174,17 +279,17 @@ struct MarkdownWebView: NSViewRepresentable {
                 savedScrollPosition = nil
             }
         }
-        
+
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             // Navigation failed
             savedScrollPosition = nil
         }
-        
+
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             // Provisional navigation failed
             savedScrollPosition = nil
         }
-        
+
         private func restoreScrollPosition(_ webView: WKWebView, position: CGPoint) {
             let script = "window.scrollTo(\(position.x), \(position.y));"
             webView.evaluateJavaScript(script, completionHandler: nil)
@@ -254,6 +359,29 @@ struct MarkdownWebView: NSViewRepresentable {
             """
     }
 
+    /// リンククリックをSwift側に通知するスクリプト
+    /// - fragment のみは JS 側で scrollIntoView してページ内ジャンプ
+    /// - それ以外は Swift 側 (WKScriptMessageHandler) にURLを通知
+    private static let linkInterceptorScript = """
+        <script>
+            document.addEventListener('click', function(e) {
+                const a = e.target.closest('a');
+                if (!a) return;
+                const href = a.getAttribute('href');
+                if (!href) return;
+                e.preventDefault();
+                if (href.startsWith('#')) {
+                    const target = document.getElementById(href.slice(1));
+                    if (target) target.scrollIntoView({behavior: 'smooth'});
+                    return;
+                }
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.linkClicked) {
+                    window.webkit.messageHandlers.linkClicked.postMessage(a.href || href);
+                }
+            }, true);
+        </script>
+        """
+
     /// 完全なHTMLドキュメントを構築
     private func buildHTMLDocument(content: String, mermaidEnabled: Bool) -> String {
         let mermaidScriptTag = buildMermaidScriptTag(enabled: mermaidEnabled)
@@ -272,6 +400,7 @@ struct MarkdownWebView: NSViewRepresentable {
         <body>
             \(content)
             \(mermaidInitScript)
+            \(Self.linkInterceptorScript)
         </body>
         </html>
         """
@@ -282,7 +411,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
         // Markdownをパースしてhtml生成
         let document = Document(parsing: markdownBody)
-        var formatter = HTMLFormatter(changedLines: changedLines)
+        var formatter = HTMLFormatter(changedLines: changedLines, baseFileURL: fileDirectoryURL)
         formatter.visit(document)
         let htmlContent = formatter.result
         let hasMermaid = formatter.hasMermaid
@@ -345,15 +474,44 @@ struct HTMLFormatter: MarkupWalker {
     var isInListItem = false
     var hasMermaid = false
     var changedLines: Set<Int>
+    var baseFileURL: URL?
+    /// 見出しID重複カウンタ (同名見出しには -1, -2 を付与)
+    var usedHeadingIds: [String: Int] = [:]
 
-    init(changedLines: Set<Int> = []) {
+    init(changedLines: Set<Int> = [], baseFileURL: URL? = nil) {
         self.changedLines = changedLines
+        self.baseFileURL = baseFileURL
     }
-    
+
     static func format(_ markup: Markup) -> String {
         var formatter = HTMLFormatter()
         formatter.visit(markup)
         return formatter.result
+    }
+
+    // MARK: - Link Resolution
+
+    /// マークダウン内のリンク先を解決し、相対パスをmarkdownファイル基準の絶対URLに変換する
+    private func resolveLinkDestination(_ destination: String) -> String {
+        guard !destination.isEmpty else { return "" }
+
+        // fragment のみ (#section など) はそのまま
+        if destination.hasPrefix("#") {
+            return destination
+        }
+
+        // 絶対URL (scheme付き) はそのまま
+        if let url = URL(string: destination), url.scheme != nil {
+            return destination
+        }
+
+        // 相対パス → markdownファイルのディレクトリ基準で絶対化
+        // URL(string:relativeTo:) は fragment や query を正しく保持する
+        guard let baseURL = baseFileURL,
+              let resolved = URL(string: destination, relativeTo: baseURL)?.absoluteURL.standardized else {
+            return destination
+        }
+        return resolved.absoluteString
     }
     
     // MARK: - Change Detection Helpers
@@ -379,13 +537,64 @@ struct HTMLFormatter: MarkupWalker {
         return classes.isEmpty ? "" : " class=\"\(classes.joined(separator: " "))\""
     }
 
+    // MARK: - Heading ID (slug)
+
+    /// Markup から平文テキストを再帰的に抽出
+    static func extractPlainText(_ markup: Markup) -> String {
+        if let text = markup as? Markdown.Text {
+            return text.string
+        }
+        if let code = markup as? Markdown.InlineCode {
+            return code.code
+        }
+        var result = ""
+        for child in markup.children {
+            result += extractPlainText(child)
+        }
+        return result
+    }
+
+    /// GitHub 風の簡易 slug 化: 小文字化、英数以外を - に変換、連続-を1つに、両端の-を除去
+    static func slugify(_ text: String) -> String {
+        var slug = ""
+        for scalar in text.lowercased().unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) {
+                slug.unicodeScalars.append(scalar)
+            } else if scalar == " " || scalar == "-" || scalar == "_" {
+                slug.append("-")
+            }
+            // その他の記号は捨てる
+        }
+        // 連続する - を 1 つに
+        while slug.contains("--") {
+            slug = slug.replacingOccurrences(of: "--", with: "-")
+        }
+        while slug.hasPrefix("-") { slug.removeFirst() }
+        while slug.hasSuffix("-") { slug.removeLast() }
+        return slug
+    }
+
+    private mutating func uniqueHeadingId(for text: String) -> String {
+        let base = Self.slugify(text)
+        guard !base.isEmpty else { return "" }
+        if let count = usedHeadingIds[base] {
+            usedHeadingIds[base] = count + 1
+            return "\(base)-\(count)"
+        } else {
+            usedHeadingIds[base] = 1
+            return base
+        }
+    }
+
     mutating func visitDocument(_ document: Markdown.Document) {
         descendInto(document)
     }
-    
+
     mutating func visitHeading(_ heading: Markdown.Heading) {
         let level = heading.level
-        result += "<h\(level)\(styleClass(heading))>"
+        let id = uniqueHeadingId(for: Self.extractPlainText(heading))
+        let idAttr = id.isEmpty ? "" : " id=\"\(id.htmlEscaped)\""
+        result += "<h\(level)\(idAttr)\(styleClass(heading))>"
         descendInto(heading)
         result += "</h\(level)>"
     }
@@ -440,7 +649,8 @@ struct HTMLFormatter: MarkupWalker {
     }
     
     mutating func visitLink(_ link: Markdown.Link) {
-        result += "<a href=\"\(link.destination ?? "")\">"
+        let href = resolveLinkDestination(link.destination ?? "")
+        result += "<a href=\"\(href.htmlEscaped)\">"
         descendInto(link)
         result += "</a>"
     }
