@@ -14,12 +14,15 @@ struct MarkdownWebView: NSViewRepresentable {
     let markdown: String
     let changedLines: Set<Int>
     let fileDirectoryURL: URL?
+    /// 読み込み完了時にスクロール先としたい見出しのフラグメント (例: "inner" → #inner)
+    let initialFragment: String?
     @Binding var webView: WKWebView?
 
-    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, webView: Binding<WKWebView?>) {
+    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, initialFragment: String? = nil, webView: Binding<WKWebView?>) {
         self.markdown = markdown
         self.changedLines = changedLines
         self.fileDirectoryURL = fileDirectoryURL
+        self.initialFragment = initialFragment
         self._webView = webView
     }
 
@@ -143,7 +146,9 @@ struct MarkdownWebView: NSViewRepresentable {
             if let yOffset = result as? CGFloat {
                 context.coordinator.savedScrollPosition = CGPoint(x: 0, y: yOffset)
             }
-            
+            // fragment (#id) 指定がある場合はスクロール位置復元より優先する
+            context.coordinator.pendingFragment = self.initialFragment
+
             // メインスレッドでHTMLをロード
             DispatchQueue.main.async {
                 let (html, baseURL) = self.renderMarkdownToHTML(self.markdown, changedLines: self.changedLines)
@@ -158,6 +163,8 @@ struct MarkdownWebView: NSViewRepresentable {
     
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var savedScrollPosition: CGPoint?
+        /// 次のロード完了時にスクロール先としたい要素のid (fragment)。一度適用したらnilに戻す
+        var pendingFragment: String?
 
         // JSから送られたリンククリックを処理
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -219,17 +226,30 @@ struct MarkdownWebView: NSViewRepresentable {
                 return
             }
 
-            // ウインドウを開く先には fragment/query を取り除いた素のファイルURLを渡す
-            // (現状のviewerは fragment/query を扱わないため)
+            // query は現状使わないので除去。fragment は受信側で見出しスクロールに利用するため保持する
             var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-            components?.fragment = nil
             components?.query = nil
-            let cleanURL = components?.url ?? url
+            let forwardURL = components?.url ?? url
 
-            NotificationCenter.default.post(name: .openFileInNewWindow, object: cleanURL)
+            NotificationCenter.default.post(name: .openFileInNewWindow, object: forwardURL)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // fragment (ページ内アンカー) が指定されている場合はそこにスクロールする (位置復元より優先)
+            if let fragment = pendingFragment, !fragment.isEmpty {
+                pendingFragment = nil
+                savedScrollPosition = nil
+                // JSコンテキストへ埋め込むため文字列エスケープ
+                let escaped = fragment
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "'", with: "\\'")
+                let script = "document.getElementById('\(escaped)')?.scrollIntoView()"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    webView.evaluateJavaScript(script, completionHandler: nil)
+                }
+                return
+            }
+
             // Navigation completed successfully - スクロール位置を復元
             if let position = savedScrollPosition {
                 // DOMの描画完了を待つため、少し遅延させて復元
@@ -394,6 +414,8 @@ struct HTMLFormatter: MarkupWalker {
     var hasMermaid = false
     var changedLines: Set<Int>
     var baseFileURL: URL?
+    /// 見出しID重複カウンタ (同名見出しには -1, -2 を付与)
+    var usedHeadingIds: [String: Int] = [:]
 
     init(changedLines: Set<Int> = [], baseFileURL: URL? = nil) {
         self.changedLines = changedLines
@@ -454,13 +476,64 @@ struct HTMLFormatter: MarkupWalker {
         return classes.isEmpty ? "" : " class=\"\(classes.joined(separator: " "))\""
     }
 
+    // MARK: - Heading ID (slug)
+
+    /// Markup から平文テキストを再帰的に抽出
+    static func extractPlainText(_ markup: Markup) -> String {
+        if let text = markup as? Markdown.Text {
+            return text.string
+        }
+        if let code = markup as? Markdown.InlineCode {
+            return code.code
+        }
+        var result = ""
+        for child in markup.children {
+            result += extractPlainText(child)
+        }
+        return result
+    }
+
+    /// GitHub 風の簡易 slug 化: 小文字化、英数以外を - に変換、連続-を1つに、両端の-を除去
+    static func slugify(_ text: String) -> String {
+        var slug = ""
+        for scalar in text.lowercased().unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) {
+                slug.unicodeScalars.append(scalar)
+            } else if scalar == " " || scalar == "-" || scalar == "_" {
+                slug.append("-")
+            }
+            // その他の記号は捨てる
+        }
+        // 連続する - を 1 つに
+        while slug.contains("--") {
+            slug = slug.replacingOccurrences(of: "--", with: "-")
+        }
+        while slug.hasPrefix("-") { slug.removeFirst() }
+        while slug.hasSuffix("-") { slug.removeLast() }
+        return slug
+    }
+
+    private mutating func uniqueHeadingId(for text: String) -> String {
+        let base = Self.slugify(text)
+        guard !base.isEmpty else { return "" }
+        if let count = usedHeadingIds[base] {
+            usedHeadingIds[base] = count + 1
+            return "\(base)-\(count)"
+        } else {
+            usedHeadingIds[base] = 1
+            return base
+        }
+    }
+
     mutating func visitDocument(_ document: Markdown.Document) {
         descendInto(document)
     }
-    
+
     mutating func visitHeading(_ heading: Markdown.Heading) {
         let level = heading.level
-        result += "<h\(level)\(styleClass(heading))>"
+        let id = uniqueHeadingId(for: Self.extractPlainText(heading))
+        let idAttr = id.isEmpty ? "" : " id=\"\(id.htmlEscaped)\""
+        result += "<h\(level)\(idAttr)\(styleClass(heading))>"
         descendInto(heading)
         result += "</h\(level)>"
     }
