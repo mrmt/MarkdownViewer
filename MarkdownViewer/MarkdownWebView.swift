@@ -15,14 +15,15 @@ struct MarkdownWebView: NSViewRepresentable {
     let changedLines: Set<Int>
     let fileDirectoryURL: URL?
     /// 読み込み完了時にスクロール先としたい見出しのフラグメント (例: "inner" → #inner)
-    let initialFragment: String?
+    /// one-shot: コンポーネントが消費したら親側で nil にクリアされる
+    @Binding var initialFragment: String?
     @Binding var webView: WKWebView?
 
-    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, initialFragment: String? = nil, webView: Binding<WKWebView?>) {
+    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, initialFragment: Binding<String?> = .constant(nil), webView: Binding<WKWebView?>) {
         self.markdown = markdown
         self.changedLines = changedLines
         self.fileDirectoryURL = fileDirectoryURL
-        self.initialFragment = initialFragment
+        self._initialFragment = initialFragment
         self._webView = webView
     }
 
@@ -146,8 +147,17 @@ struct MarkdownWebView: NSViewRepresentable {
             if let yOffset = result as? CGFloat {
                 context.coordinator.savedScrollPosition = CGPoint(x: 0, y: yOffset)
             }
-            // fragment (#id) 指定がある場合はスクロール位置復元より優先する
-            context.coordinator.pendingFragment = self.initialFragment
+            // fragment (#id) 指定がある場合はスクロール位置復元より優先する。
+            // 一度消費したら親側 state をクリアして、以降の自動リロード等で
+            // 再度スクロールされないようにする (one-shot)
+            if let fragment = self.initialFragment {
+                context.coordinator.pendingFragment = fragment
+                DispatchQueue.main.async {
+                    self.initialFragment = nil
+                }
+            } else {
+                context.coordinator.pendingFragment = nil
+            }
 
             // メインスレッドでHTMLをロード
             DispatchQueue.main.async {
