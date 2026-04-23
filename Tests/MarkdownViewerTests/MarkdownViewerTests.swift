@@ -218,4 +218,37 @@ final class HTMLFormatterLinkTests: XCTestCase {
         // space should be URL-encoded as %20 in the absolute URL
         XCTAssertTrue(html.contains("href=\"file:///tmp/docs/foo%20bar.md\""), html)
     }
+
+    func testRelativeLinkWithFragmentPreservesFragment() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](other.md#section)", baseFileURL: base)
+        // fragment は # のまま保持され、%23 にエンコードされない
+        XCTAssertTrue(html.contains("href=\"file:///tmp/docs/other.md#section\""), html)
+    }
+
+    func testRelativeLinkWithFragmentHasCorrectPathExtension() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](other.md#section)", baseFileURL: base)
+
+        // HTML から href を取り出して URL にパースし、pathExtension が "md" であることを確認
+        // (openLocalMarkdownFile が fragment 付き URL を弾かないことの検証)
+        let pattern = #"href=\"([^\"]+)\""#
+        let regex = try! NSRegularExpression(pattern: pattern)
+        let range = NSRange(html.startIndex..., in: html)
+        let match = regex.firstMatch(in: html, range: range)
+        XCTAssertNotNil(match)
+        let hrefRange = Range(match!.range(at: 1), in: html)!
+        let href = String(html[hrefRange])
+
+        let url = URL(string: href)!
+        XCTAssertEqual(url.pathExtension.lowercased(), "md")
+        XCTAssertEqual(url.fragment, "section")
+        XCTAssertEqual(url.path, "/tmp/docs/other.md")
+    }
+
+    func testLinkWithQueryPreserved() {
+        let base = URL(fileURLWithPath: "/tmp/docs/")
+        let html = render("[link](other.md?v=1)", baseFileURL: base)
+        XCTAssertTrue(html.contains("href=\"file:///tmp/docs/other.md?v=1\""), html)
+    }
 }

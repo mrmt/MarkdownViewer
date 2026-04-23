@@ -170,16 +170,31 @@ struct MarkdownWebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            // リンククリックはJS側で捕捉するため、ナビゲーションはすべて許可 (初期HTMLロード等)
-            // ただし念のため、linkActivated は cancel して二重動作を防ぐ
-            if navigationAction.navigationType == .linkActivated {
-                decisionHandler(.cancel)
-                if let url = navigationAction.request.url {
-                    handleLinkClick(url: url)
-                }
+            // リンククリックは基本的にJSインターセプタ側でpreventDefaultされるため、
+            // ここには届かない。保険として実装するフォールバック:
+            //   - ページ内アンカー (同一ドキュメント内fragment) → WebKitの既定動作を許可
+            //   - それ以外の linkActivated → cancel してSwift側で処理
+            guard navigationAction.navigationType == .linkActivated,
+                  let url = navigationAction.request.url else {
+                decisionHandler(.allow)
                 return
             }
-            decisionHandler(.allow)
+
+            if isSameDocumentFragmentNavigation(target: url, current: webView.url) {
+                decisionHandler(.allow)
+                return
+            }
+
+            decisionHandler(.cancel)
+            handleLinkClick(url: url)
+        }
+
+        /// 現在表示中のドキュメントと scheme/host/path が同じで fragment のみ異なる navigation かどうか
+        private func isSameDocumentFragmentNavigation(target: URL, current: URL?) -> Bool {
+            guard target.fragment != nil, let current = current else { return false }
+            return target.scheme == current.scheme
+                && target.host == current.host
+                && target.path == current.path
         }
 
         private func handleLinkClick(url: URL) {
@@ -196,13 +211,22 @@ struct MarkdownWebView: NSViewRepresentable {
         }
 
         private func openLocalMarkdownFile(url: URL) {
+            // URL.pathExtension/path は fragment/query を含まないので、拡張子・存在判定は url そのもので安全に行える
             let ext = url.pathExtension.lowercased()
             guard ext == "md" || ext == "markdown",
                   FileManager.default.isReadableFile(atPath: url.path) else {
                 // readできない or markdownでない → 何もしない
                 return
             }
-            NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
+
+            // ウインドウを開く先には fragment/query を取り除いた素のファイルURLを渡す
+            // (現状のviewerは fragment/query を扱わないため)
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.fragment = nil
+            components?.query = nil
+            let cleanURL = components?.url ?? url
+
+            NotificationCenter.default.post(name: .openFileInNewWindow, object: cleanURL)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -296,6 +320,8 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     /// リンククリックをSwift側に通知するスクリプト
+    /// - fragment のみは JS 側で scrollIntoView してページ内ジャンプ
+    /// - それ以外は Swift 側 (WKScriptMessageHandler) にURLを通知
     private static let linkInterceptorScript = """
         <script>
             document.addEventListener('click', function(e) {
@@ -303,9 +329,12 @@ struct MarkdownWebView: NSViewRepresentable {
                 if (!a) return;
                 const href = a.getAttribute('href');
                 if (!href) return;
-                // fragment のみは既定動作 (ページ内ジャンプ) を許可
-                if (href.startsWith('#')) return;
                 e.preventDefault();
+                if (href.startsWith('#')) {
+                    const target = document.getElementById(href.slice(1));
+                    if (target) target.scrollIntoView({behavior: 'smooth'});
+                    return;
+                }
                 if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.linkClicked) {
                     window.webkit.messageHandlers.linkClicked.postMessage(a.href || href);
                 }
@@ -394,10 +423,11 @@ struct HTMLFormatter: MarkupWalker {
         }
 
         // 相対パス → markdownファイルのディレクトリ基準で絶対化
-        guard let baseURL = baseFileURL else { return destination }
-
-        let decodedPath = destination.removingPercentEncoding ?? destination
-        let resolved = URL(fileURLWithPath: decodedPath, relativeTo: baseURL).standardizedFileURL
+        // URL(string:relativeTo:) は fragment や query を正しく保持する
+        guard let baseURL = baseFileURL,
+              let resolved = URL(string: destination, relativeTo: baseURL)?.absoluteURL.standardized else {
+            return destination
+        }
         return resolved.absoluteString
     }
     
