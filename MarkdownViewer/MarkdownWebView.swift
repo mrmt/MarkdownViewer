@@ -15,15 +15,15 @@ struct MarkdownWebView: NSViewRepresentable {
     let changedLines: Set<Int>
     let fileDirectoryURL: URL?
     /// 読み込み完了時にスクロール先としたい見出しのフラグメント (例: "inner" → #inner)
-    /// one-shot: コンポーネントが消費したら親側で nil にクリアされる
-    @Binding var initialFragment: String?
+    /// one-shot: Coordinator が同一 fragment を 2 度適用しないよう idempotent に管理する
+    let initialFragment: String?
     @Binding var webView: WKWebView?
 
-    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, initialFragment: Binding<String?> = .constant(nil), webView: Binding<WKWebView?>) {
+    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, initialFragment: String? = nil, webView: Binding<WKWebView?>) {
         self.markdown = markdown
         self.changedLines = changedLines
         self.fileDirectoryURL = fileDirectoryURL
-        self._initialFragment = initialFragment
+        self.initialFragment = initialFragment
         self._webView = webView
     }
 
@@ -116,6 +116,17 @@ struct MarkdownWebView: NSViewRepresentable {
             text-align: center;
             margin: 1em 0;
         }
+        .frontmatter {
+            background-color: #f7f0ff;
+            border: 1px solid #eadcff;
+            border-radius: 6px;
+            color: #5f4b8b;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 0 0 24px 0;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
         .changed {
             background-color: #fff5b1;
             border-radius: 3px;
@@ -148,13 +159,12 @@ struct MarkdownWebView: NSViewRepresentable {
                 context.coordinator.savedScrollPosition = CGPoint(x: 0, y: yOffset)
             }
             // fragment (#id) 指定がある場合はスクロール位置復元より優先する。
-            // 一度消費したら親側 state をクリアして、以降の自動リロード等で
-            // 再度スクロールされないようにする (one-shot)
-            if let fragment = self.initialFragment {
+            // 同一 fragment を既に適用済みなら何もしない (one-shot / idempotent)。
+            // これにより fragment 付きで開いたあとの自動リロード等で
+            // 再度 scrollIntoView されるのを防ぐ。
+            if let fragment = self.initialFragment,
+               fragment != context.coordinator.appliedFragment {
                 context.coordinator.pendingFragment = fragment
-                DispatchQueue.main.async {
-                    self.initialFragment = nil
-                }
             } else {
                 context.coordinator.pendingFragment = nil
             }
@@ -173,8 +183,10 @@ struct MarkdownWebView: NSViewRepresentable {
     
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var savedScrollPosition: CGPoint?
-        /// 次のロード完了時にスクロール先としたい要素のid (fragment)。一度適用したらnilに戻す
+        /// 次のロード完了時にスクロール先としたい要素のid (fragment)。didFinish実行後はnilに戻す
         var pendingFragment: String?
+        /// 既にscrollIntoView済みのfragment。同じ値ではもう pendingFragment を設定しない (one-shot化)
+        var appliedFragment: String?
 
         // JSから送られたリンククリックを処理
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -249,6 +261,7 @@ struct MarkdownWebView: NSViewRepresentable {
             if let fragment = pendingFragment, !fragment.isEmpty {
                 pendingFragment = nil
                 savedScrollPosition = nil
+                appliedFragment = fragment  // 以降、同じ fragment では再scrollしない
                 // JSコンテキストへ埋め込むため文字列エスケープ
                 let escaped = fragment
                     .replacingOccurrences(of: "\\", with: "\\\\")
@@ -397,12 +410,16 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     private func renderMarkdownToHTML(_ markdown: String, changedLines: Set<Int>) -> (String, URL?) {
+        let (frontmatter, markdownBody) = FrontmatterRenderer.split(markdown)
+
         // Markdownをパースしてhtml生成
-        let document = Document(parsing: markdown)
+        let document = Document(parsing: markdownBody)
         var formatter = HTMLFormatter(changedLines: changedLines, baseFileURL: fileDirectoryURL)
         formatter.visit(document)
         let htmlContent = formatter.result
         let hasMermaid = formatter.hasMermaid
+        let frontmatterHTML = frontmatter.map(FrontmatterRenderer.html(for:)) ?? ""
+        let contentSections = [frontmatterHTML, htmlContent].filter { !$0.isEmpty }
 
         // baseURLを設定（リソースを読み込むため）
         let baseURL: URL? = {
@@ -411,9 +428,46 @@ struct MarkdownWebView: NSViewRepresentable {
         }()
 
         // 完全なHTMLドキュメントを構築
-        let html = buildHTMLDocument(content: htmlContent, mermaidEnabled: hasMermaid)
+        let html = buildHTMLDocument(content: contentSections.joined(separator: "\n"), mermaidEnabled: hasMermaid)
 
         return (html, baseURL)
+    }
+}
+
+enum FrontmatterRenderer {
+    static func split(_ markdown: String) -> (frontmatter: String?, body: String) {
+        guard let firstLineRange = nextLineRange(in: markdown, startingAt: markdown.startIndex),
+              String(markdown[firstLineRange]).trimmingCharacters(in: .newlines) == "---" else {
+            return (nil, markdown)
+        }
+
+        var scanIndex = firstLineRange.upperBound
+
+        while let lineRange = nextLineRange(in: markdown, startingAt: scanIndex) {
+            let line = String(markdown[lineRange]).trimmingCharacters(in: .newlines)
+            if line == "---" || line == "..." {
+                let frontmatter = String(markdown[..<lineRange.upperBound])
+                let body = lineRange.upperBound < markdown.endIndex ? String(markdown[lineRange.upperBound...]) : ""
+                return (frontmatter, body)
+            }
+            scanIndex = lineRange.upperBound
+        }
+
+        return (nil, markdown)
+    }
+
+    static func html(for frontmatter: String) -> String {
+        "<pre class=\"frontmatter\">\(frontmatter.htmlEscaped)</pre>"
+    }
+
+    private static func nextLineRange(in string: String, startingAt index: String.Index) -> Range<String.Index>? {
+        guard index < string.endIndex else { return nil }
+
+        if let newlineIndex = string[index...].firstIndex(of: "\n") {
+            return index..<string.index(after: newlineIndex)
+        }
+
+        return index..<string.endIndex
     }
 }
 

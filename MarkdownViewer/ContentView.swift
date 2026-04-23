@@ -171,7 +171,7 @@ struct ContentView: View {
                     markdown: markdownContent,
                     changedLines: changedLines,
                     fileDirectoryURL: filePath.isEmpty ? nil : URL(fileURLWithPath: filePath).deletingLastPathComponent(),
-                    initialFragment: $initialFragment,
+                    initialFragment: initialFragment,
                     webView: $webView
                 )
             }
