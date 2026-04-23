@@ -120,17 +120,20 @@ struct MarkdownWebView: NSViewRepresentable {
     
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        // リンククリックをJS経由でSwiftに通知するためのメッセージハンドラを登録
+        configuration.userContentController.add(context.coordinator, name: "linkClicked")
+
         let webView = FocusableWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
-        
+
         // テキスト選択とコピーを有効にする
         webView.allowsMagnification = true
-        
+
         // WKWebViewの参照を保存
         DispatchQueue.main.async {
             self.webView = webView
         }
-        
+
         return webView
     }
     
@@ -153,19 +156,30 @@ struct MarkdownWebView: NSViewRepresentable {
         Coordinator()
     }
     
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var savedScrollPosition: CGPoint?
 
-        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            // リンククリック以外（最初のHTMLロードやフレーム読み込み）は許可
-            guard navigationAction.navigationType == .linkActivated,
-                  let url = navigationAction.request.url else {
-                decisionHandler(.allow)
+        // JSから送られたリンククリックを処理
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "linkClicked",
+                  let href = message.body as? String,
+                  let url = URL(string: href) else {
                 return
             }
-
-            decisionHandler(.cancel)
             handleLinkClick(url: url)
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            // リンククリックはJS側で捕捉するため、ナビゲーションはすべて許可 (初期HTMLロード等)
+            // ただし念のため、linkActivated は cancel して二重動作を防ぐ
+            if navigationAction.navigationType == .linkActivated {
+                decisionHandler(.cancel)
+                if let url = navigationAction.request.url {
+                    handleLinkClick(url: url)
+                }
+                return
+            }
+            decisionHandler(.allow)
         }
 
         private func handleLinkClick(url: URL) {
@@ -281,6 +295,24 @@ struct MarkdownWebView: NSViewRepresentable {
             """
     }
 
+    /// リンククリックをSwift側に通知するスクリプト
+    private static let linkInterceptorScript = """
+        <script>
+            document.addEventListener('click', function(e) {
+                const a = e.target.closest('a');
+                if (!a) return;
+                const href = a.getAttribute('href');
+                if (!href) return;
+                // fragment のみは既定動作 (ページ内ジャンプ) を許可
+                if (href.startsWith('#')) return;
+                e.preventDefault();
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.linkClicked) {
+                    window.webkit.messageHandlers.linkClicked.postMessage(a.href || href);
+                }
+            }, true);
+        </script>
+        """
+
     /// 完全なHTMLドキュメントを構築
     private func buildHTMLDocument(content: String, mermaidEnabled: Bool) -> String {
         let mermaidScriptTag = buildMermaidScriptTag(enabled: mermaidEnabled)
@@ -299,6 +331,7 @@ struct MarkdownWebView: NSViewRepresentable {
         <body>
             \(content)
             \(mermaidInitScript)
+            \(Self.linkInterceptorScript)
         </body>
         </html>
         """
