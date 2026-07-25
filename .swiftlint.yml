@@ -1,0 +1,35 @@
+included:
+  - MarkdownViewer
+  - Tests
+
+excluded:
+  - MarkdownViewer/mermaid.min.js
+
+# 導入初期はwarning中心。ファイル分割リファクタ完了後に閾値を厳格化する
+line_length:
+  warning: 160
+  ignores_comments: true
+  ignores_urls: true
+
+file_length:
+  warning: 500
+
+type_body_length:
+  warning: 350
+
+function_body_length:
+  warning: 100
+
+cyclomatic_complexity:
+  warning: 15
+
+identifier_name:
+  min_length: 1
+
+# テストコードでの利用は許容
+force_try:
+  severity: warning
+
+disabled_rules:
+  - todo
+  - trailing_whitespace # 既存コードに多数残存。リファクタPRで解消後に有効化

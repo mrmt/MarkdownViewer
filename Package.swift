@@ -13,7 +13,8 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-markdown.git", branch: "main")
+        // バージョン固定: branch指定だと上流の変更でビルドが突然壊れるため
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", .upToNextMinor(from: "0.7.3"))
     ],
     targets: [
         .executableTarget(
