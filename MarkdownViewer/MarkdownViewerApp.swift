@@ -57,6 +57,7 @@ extension Notification.Name {
     static let openFile = Notification.Name("openFile")
     static let newWindow = Notification.Name("newWindow")
     static let openFileInNewWindow = Notification.Name("openFileInNewWindow")
+    static let reloadMarkdownFile = Notification.Name("ReloadMarkdownFile")
 }
 
 // ウィンドウコントローラークラス
@@ -183,11 +184,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openFile() {
-        NotificationCenter.default.post(name: .openFile, object: nil)
+        // keyWindow を object に載せ、前面ウィンドウの ContentView だけが処理する
+        NotificationCenter.default.post(name: .openFile, object: NSApp.keyWindow)
     }
 
     @objc private func reloadFile() {
-        NotificationCenter.default.post(name: NSNotification.Name("ReloadMarkdownFile"), object: nil)
+        NotificationCenter.default.post(name: .reloadMarkdownFile, object: NSApp.keyWindow)
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
