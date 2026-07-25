@@ -1,11 +1,11 @@
 # CI: SwiftPMビルド+テスト(カバレッジ付き)、xcodebuildビルド、SwiftLint
 name: CI
 
+# pull_request にブランチ制限を付けない: スタックPR (main以外がbase) でもCIを実行するため
 on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 jobs:
   spm-test:
