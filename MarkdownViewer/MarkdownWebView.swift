@@ -254,10 +254,8 @@ struct MarkdownWebView: NSViewRepresentable {
         let contentSections = [frontmatterHTML, htmlContent].filter { !$0.isEmpty }
 
         // baseURLを設定（リソースを読み込むため）
-        let baseURL: URL? = {
-            guard let resourcePath = Bundle.main.resourcePath else { return nil }
-            return URL(fileURLWithPath: resourcePath)
-        }()
+        // SwiftPMビルドでは Bundle.main にリソースが無いため ResourceBundle 経由で解決
+        let baseURL = ResourceBundle.current.resourceURL
 
         // 完全なHTMLドキュメントを構築
         let html = MarkdownStylesheet.buildHTMLDocument(content: contentSections.joined(separator: "\n"), mermaidEnabled: hasMermaid)

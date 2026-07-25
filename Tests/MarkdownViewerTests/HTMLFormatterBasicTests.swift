@@ -166,18 +166,14 @@ final class HTMLFormatterBasicTests: XCTestCase {
         XCTAssertTrue(html.contains("</table>"), html)
     }
 
-    /// 既知バグ: ヘッダ行のセルが <th> ではなく <td> になる
-    /// (visitTableCell が colspan>1 で th/td を判定しているため)
-    /// 修正PRでこの XCTExpectFailure を外して期待値を有効化する
-    func testTableHeaderCellsShouldBeTh() {
+    /// ヘッダ行のセルは <th>、ボディ行のセルは <td>
+    func testTableHeaderCellsAreTh() {
         let html = render("""
         | A | B |
         |---|---|
         | 1 | 2 |
         """)
-        XCTExpectFailure("既知バグ: ヘッダセルが <td> で出力される (colspan による th/td 誤判定)") {
-            XCTAssertTrue(html.contains("<thead><tr><th>A</th><th>B</th></tr></thead>"), html)
-        }
+        XCTAssertTrue(html.contains("<thead><tr><th>A</th><th>B</th></tr></thead>"), html)
     }
 
     func testTableBodyCellsAreTd() {
@@ -187,6 +183,16 @@ final class HTMLFormatterBasicTests: XCTestCase {
         | 1 | 2 |
         """)
         XCTAssertTrue(html.contains("<td>1</td><td>2</td>"), html)
+    }
+
+    /// colspan はヘッダ判定ではなく属性として出力される
+    func testTableCellColspanBecomesAttribute() {
+        let html = render("""
+        | A | B |
+        |---|---|
+        | span ||
+        """)
+        XCTAssertTrue(html.contains("<td colspan=\"2\">span</td>"), html)
     }
 }
 
