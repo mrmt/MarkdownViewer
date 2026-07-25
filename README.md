@@ -36,6 +36,18 @@ xcodegen generate
 バージョン番号は `project.yml` の `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` が唯一の管理箇所
 (Info.plist はビルド設定変数を参照)。変更後に `xcodegen generate` を実行すること。
 
+### 依存ライブラリの更新
+
+依存は SwiftPM 用の `Package.swift` と XcodeGen 用の `project.yml` の2箇所で宣言している。
+バージョンを変更する場合は**両方**を更新し、`xcodegen generate` を実行すること
+(dependabot は `Package.swift` しか更新しないため、手動での追従が必要)。
+
+一致しているかは次で確認できる。CI でも同じ検証を行う。
+
+```bash
+./scripts/check-dependency-versions.sh
+```
+
 ### テスト
 
 ```bash
