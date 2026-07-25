@@ -20,23 +20,28 @@ macOS用のシンプルで使いやすいMarkdownビューアアプリケーシ�
 
 - Xcode 16.3以降
 
-### 初回セットアップ (swift-markdownパッケージの追加)
+### プロジェクト構成 (XcodeGen)
 
-1. Xcodeでプロジェクトを開く:
+`MarkdownViewer.xcodeproj` は [XcodeGen](https://github.com/yonaskolb/XcodeGen) で `project.yml` から生成される。
+生成済み pbxproj もコミットされているため、ビルドだけなら XcodeGen は不要。
+
+ソースファイルの追加・削除やビルド設定の変更を行う場合:
 
 ```bash
-open MarkdownViewer.xcodeproj
+brew install xcodegen
+# project.yml を編集後
+xcodegen generate
 ```
 
-1. swift-markdownパッケージを追加:
+バージョン番号は `project.yml` の `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` が唯一の管理箇所
+(Info.plist はビルド設定変数を参照)。変更後に `xcodegen generate` を実行すること。
 
-   - Xcodeのプロジェクトナビゲータで `MarkdownViewer` プロジェクトを選択
-   - `PROJECT` > `MarkdownViewer` を選択
-   - `Package Dependencies` タブを選択
-   - `+` ボタンをクリック
-   - 検索フィールドに `https://github.com/swiftlang/swift-markdown.git` を入力
-   - `Add Package` をクリック
-   - `Markdown` プロダクトを選択して `Add Package` をクリック
+### テスト
+
+```bash
+swift test                # SwiftPM 経由
+xcodebuild test -project MarkdownViewer.xcodeproj -scheme MarkdownViewer  # Xcode 経由
+```
 
 ### ビルド手順
 
@@ -122,6 +127,17 @@ Mermaidの詳細については、[Mermaid公式ドキュメント](https://merm
 - **対象OS**: macOS 13.0以降
 
 ## 更新履歴
+
+### バージョン 1.8
+- 不具合修正
+  - テーブルのヘッダ行が `<th>` として描画されない問題を修正
+  - Command-R が全ウィンドウを一斉リロード、Command-O がウィンドウ数ぶんダイアログを開く問題を修正 (前面ウィンドウのみに)
+  - 複数ウィンドウ利用時にキー操作 (j/k 等) が別ウィンドウをスクロールし得る問題を修正
+  - 複数ファイル同時ドロップ時の振り分けが不定になる問題を修正
+- 開発基盤の強化
+  - XcodeGen 導入 (project.yml でプロジェクト管理、バージョン一元化)
+  - テストを 10件 → 95件に拡充、CI にカバレッジ計測・xcodebuild 検証・SwiftLint を追加
+  - 責務ごとのファイル分割リファクタリング (Rendering/ Input/ Support/)
 
 ### バージョン 1.7
 - リンク対応

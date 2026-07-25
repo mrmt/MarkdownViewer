@@ -10,106 +10,6 @@ import SwiftUI
 import WebKit
 import UniformTypeIdentifiers
 
-// MARK: - Key Binding System
-
-/// キーコード定義（マジックナンバーを排除）
-enum KeyCode: UInt16 {
-    case downArrow = 125
-    case upArrow = 126
-    case home = 115
-    case end = 119
-    case pageUp = 116
-    case pageDown = 121
-    case space = 49
-}
-
-/// キーバインディング定義
-struct KeyBinding: Hashable {
-    let key: String?
-    let keyCode: KeyCode?
-    let modifiers: NSEvent.ModifierFlags
-    let requiresShift: Bool
-
-    init(key: String, modifiers: NSEvent.ModifierFlags = [], requiresShift: Bool = false) {
-        self.key = key
-        self.keyCode = nil
-        self.modifiers = modifiers
-        self.requiresShift = requiresShift
-    }
-
-    init(keyCode: KeyCode, modifiers: NSEvent.ModifierFlags = [], requiresShift: Bool = false) {
-        self.key = nil
-        self.keyCode = keyCode
-        self.modifiers = modifiers
-        self.requiresShift = requiresShift
-    }
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(key)
-        hasher.combine(keyCode?.rawValue)
-        hasher.combine(modifiers.rawValue)
-        hasher.combine(requiresShift)
-    }
-
-    static func == (lhs: KeyBinding, rhs: KeyBinding) -> Bool {
-        lhs.key == rhs.key &&
-        lhs.keyCode == rhs.keyCode &&
-        lhs.modifiers == rhs.modifiers &&
-        lhs.requiresShift == rhs.requiresShift
-    }
-}
-
-/// キーバインドハンドラ
-class KeyBindingHandler {
-    typealias Action = (WKWebView?) -> NSEvent?
-
-    private var bindings: [KeyBinding: Action] = [:]
-
-    func register(_ binding: KeyBinding, action: @escaping Action) {
-        bindings[binding] = action
-    }
-
-    func handle(_ event: NSEvent, webView: WKWebView?) -> NSEvent? {
-        let modifiers = event.modifierFlags.intersection([.command, .control, .option])
-        let isShiftPressed = event.modifierFlags.contains(.shift)
-
-        // キーコードベースの判定
-        if let keyCode = KeyCode(rawValue: event.keyCode) {
-            let binding = KeyBinding(keyCode: keyCode, modifiers: modifiers, requiresShift: isShiftPressed)
-            if let action = bindings[binding] {
-                return action(webView)
-            }
-
-            // Shiftを無視したバインディングもチェック（Spaceキー以外）
-            if isShiftPressed && keyCode != .space {
-                let bindingWithoutShift = KeyBinding(keyCode: keyCode, modifiers: modifiers, requiresShift: false)
-                if let action = bindings[bindingWithoutShift] {
-                    return action(webView)
-                }
-            }
-        }
-
-        // 文字ベースの判定
-        if let characters = event.charactersIgnoringModifiers {
-            // Shift-Gのような大文字判定
-            if event.characters == "G" && modifiers.isEmpty {
-                let binding = KeyBinding(key: "G", modifiers: modifiers)
-                if let action = bindings[binding] {
-                    return action(webView)
-                }
-            }
-
-            // 通常の文字キー
-            let binding = KeyBinding(key: characters, modifiers: modifiers)
-            if let action = bindings[binding] {
-                return action(webView)
-            }
-        }
-
-        return event
-    }
-}
-
 // MARK: - Content View
 
 struct ContentView: View {
@@ -117,13 +17,14 @@ struct ContentView: View {
     @State private var markdownContent: String = ""
     @State private var changedLines: Set<Int> = []
     @State private var filePath: String = ""
-    @State private var initialFragment: String? = nil
+    @State private var initialFragment: String?
     @State private var isDragOver = false
     @StateObject private var fileWatcher = FileWatcher()
     @State private var webView: WKWebView?
     @State private var eventMonitor: Any?
+    @State private var hostWindow: NSWindow?
     private let keyBindingHandler = KeyBindingHandler()
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // ヘッダー
@@ -142,7 +43,7 @@ struct ContentView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 Divider()
             }
-            
+
             // Markdownビューア
             if markdownContent.isEmpty {
                 // ドラッグ&ドロップエリア
@@ -176,6 +77,7 @@ struct ContentView: View {
                 )
             }
         }
+        .background(WindowAccessor(window: $hostWindow))
         .onDrop(of: ["public.file-url"], isTargeted: $isDragOver) { providers in
             handleDrop(providers: providers)
         }
@@ -184,10 +86,12 @@ struct ContentView: View {
                 loadMarkdownFile(url: url)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .openFile)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .openFile)) { notification in
+            guard WindowScopedNotification.shouldHandle(object: notification.object, in: hostWindow) else { return }
             openFile()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ReloadMarkdownFile"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .reloadMarkdownFile)) { notification in
+            guard WindowScopedNotification.shouldHandle(object: notification.object, in: hostWindow) else { return }
             reloadMarkdownFile()
         }
         .onAppear {
@@ -205,14 +109,14 @@ struct ContentView: View {
             removeKeyEventMonitor()
         }
     }
-    
+
     private func openFile() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true  // 複数ファイルを選択可能にする
         panel.allowedContentTypes = [UTType.text]
-        
+
         if panel.runModal() == .OK {
             for url in panel.urls {
                 if markdownContent.isEmpty {
@@ -225,31 +129,36 @@ struct ContentView: View {
             }
         }
     }
-    
+
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        // 複数ファイルのドロップに対応
+        // 各providerのURL解決は非同期で完了順が不定なため、
+        // 全て揃ってから DropTargetPlanner で決定的に振り分ける
+        let group = DispatchGroup()
+        var urls = [URL?](repeating: nil, count: providers.count)
+
         for (index, provider) in providers.enumerated() {
-            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, error) in
+            group.enter()
+            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
+                defer { group.leave() }
                 guard let data = item as? Data,
-                      let url = URL(dataRepresentation: data, relativeTo: nil),
-                      url.pathExtension.lowercased() == "md" || url.pathExtension.lowercased() == "markdown"
-                else { return }
-                
-                DispatchQueue.main.async {
-                    if index == 0 && self.markdownContent.isEmpty {
-                        // 最初のファイルで現在のウィンドウが空の場合は、現在のウィンドウで開く
-                        self.loadMarkdownFile(path: url.path)
-                    } else {
-                        // それ以外は新しいウィンドウで開く
-                        NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
-                    }
-                }
+                      let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
+                urls[index] = url
             }
         }
-        
+
+        group.notify(queue: .main) {
+            let plan = DropTargetPlanner.plan(urls: urls, isCurrentWindowEmpty: self.markdownContent.isEmpty)
+            if let url = plan.openInCurrentWindow {
+                self.loadMarkdownFile(path: url.path)
+            }
+            for url in plan.openInNewWindows {
+                NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
+            }
+        }
+
         return true
     }
-    
+
     /// fragment 付き URL を渡すと、ロード完了時に該当見出しへスクロールする
     private func loadMarkdownFile(url: URL) {
         loadMarkdownFile(path: url.path, fragment: url.fragment)
@@ -271,7 +180,7 @@ struct ContentView: View {
             print("ファイルの読み込みに失敗: \(error)")
         }
     }
-    
+
     private func reloadMarkdownFile() {
         guard !filePath.isEmpty else { return }
         do {
@@ -286,94 +195,18 @@ struct ContentView: View {
             print("ファイルの再読み込みに失敗: \(error)")
         }
     }
-    
-    private func registerKeyBindings() {
-        // 矢印キー
-        keyBindingHandler.register(KeyBinding(keyCode: .downArrow)) { webView in
-            MarkdownWebView.scrollDown(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(keyCode: .upArrow)) { webView in
-            MarkdownWebView.scrollUp(webView)
-            return nil
-        }
-
-        // Home/End
-        keyBindingHandler.register(KeyBinding(keyCode: .home)) { webView in
-            MarkdownWebView.scrollToTop(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(keyCode: .end)) { webView in
-            MarkdownWebView.scrollToBottom(webView)
-            return nil
-        }
-
-        // Page Up/Down
-        keyBindingHandler.register(KeyBinding(keyCode: .pageUp)) { webView in
-            MarkdownWebView.scrollPageUp(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(keyCode: .pageDown)) { webView in
-            MarkdownWebView.scrollPageDown(webView)
-            return nil
-        }
-
-        // Space (with/without Shift)
-        keyBindingHandler.register(KeyBinding(keyCode: .space, requiresShift: false)) { webView in
-            MarkdownWebView.scrollPageDown(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(keyCode: .space, requiresShift: true)) { webView in
-            MarkdownWebView.scrollPageUp(webView)
-            return nil
-        }
-
-        // Vim-style navigation
-        keyBindingHandler.register(KeyBinding(key: "j")) { webView in
-            MarkdownWebView.scrollDown(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(key: "k")) { webView in
-            MarkdownWebView.scrollUp(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(key: "G")) { webView in
-            MarkdownWebView.scrollToBottom(webView)
-            return nil
-        }
-
-        // Emacs-style navigation
-        keyBindingHandler.register(KeyBinding(key: "n", modifiers: .control)) { webView in
-            MarkdownWebView.scrollDown(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(key: "p", modifiers: .control)) { webView in
-            MarkdownWebView.scrollUp(webView)
-            return nil
-        }
-
-        // Command-< / Command->
-        keyBindingHandler.register(KeyBinding(key: "<", modifiers: .command)) { webView in
-            MarkdownWebView.scrollToTop(webView)
-            return nil
-        }
-        keyBindingHandler.register(KeyBinding(key: ">", modifiers: .command)) { webView in
-            MarkdownWebView.scrollToBottom(webView)
-            return nil
-        }
-
-        // Command-C (コピー) と Command-A (全選択) はメニューに処理させる
-        // 注: これらは登録しないことで、デフォルトでパススルーされる
-    }
 
     private func setupKeyEventMonitor() {
-        registerKeyBindings()
+        DefaultKeyBindings.register(into: keyBindingHandler)
 
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
+            // このモニタはアプリ全体に効くため、ウィンドウごとに登録されると多重処理になる。
+            // 自ウィンドウのイベント以外はパススルーし、該当ウィンドウのモニタに委ねる
+            guard event.window === hostWindow else { return event }
             return keyBindingHandler.handle(event, webView: webView)
         }
     }
-    
+
     private func removeKeyEventMonitor() {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
@@ -385,45 +218,5 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView(documentManager: DocumentManager())
-    }
-}
-//
-// DiffCalculator.swift
-// MarkdownViewer
-//
-// Copyright (c) 2025 Jun Morimoto
-// Licensed under the MIT License
-//
-
-import Foundation
-
-struct DiffCalculator {
-    /// Calculates the line numbers (1-based) that have been changed (inserted or modified) in the new content.
-    ///
-    /// - Parameters:
-    ///   - oldContent: The original markdown string.
-    ///   - newContent: The new markdown string.
-    /// - Returns: A Set of Int representing the 1-based line numbers in `newContent` that are new or modified.
-    static func calculateChangedLines(oldContent: String, newContent: String) -> Set<Int> {
-        let oldLines = oldContent.components(separatedBy: .newlines)
-        let newLines = newContent.components(separatedBy: .newlines)
-
-        let diff = newLines.difference(from: oldLines)
-
-        var changedLines = Set<Int>()
-
-        for change in diff {
-            switch change {
-            case .insert(let offset, _, _):
-                // offset is the index in the *new* collection.
-                // Convert 0-based index to 1-based line number.
-                changedLines.insert(offset + 1)
-            case .remove:
-                // We don't track removals because they are not visible in the new content.
-                break
-            }
-        }
-
-        return changedLines
     }
 }
