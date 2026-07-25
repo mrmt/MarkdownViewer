@@ -71,6 +71,4 @@ final class FrontmatterRendererTests: XCTestCase {
 // リンク解決のテスト
 //
 
-import XCTest
 import Markdown
-@testable import MarkdownViewer

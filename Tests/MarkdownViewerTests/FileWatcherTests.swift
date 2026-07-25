@@ -15,29 +15,29 @@ final class FileWatcherTests: XCTestCase {
     override func setUp() {
         super.setUp()
         fileWatcher = FileWatcher()
-        
+
         // 一時ファイルを作成
         let tempDir = NSTemporaryDirectory()
         tempFilePath = (tempDir as NSString).appendingPathComponent("test.md")
-        
+
         // テスト前に古いファイルがあれば削除
         if fileManager.fileExists(atPath: tempFilePath) {
             try? fileManager.removeItem(atPath: tempFilePath)
         }
-        
+
         // 新しいファイルを作成
-        fileManager.createFile(atPath: tempFilePath, contents: "Initial content".data(using: .utf8), attributes: nil)
+        fileManager.createFile(atPath: tempFilePath, contents: Data("Initial content".utf8), attributes: nil)
     }
 
     override func tearDown() {
         // 監視を停止し、リソースを解放
         fileWatcher.stopWatching()
-        
+
         // 一時ファイルを削除
         if fileManager.fileExists(atPath: tempFilePath) {
             try? fileManager.removeItem(atPath: tempFilePath)
         }
-        
+
         fileWatcher = nil
         tempFilePath = nil
         super.tearDown()
@@ -78,13 +78,3 @@ final class FileWatcherTests: XCTestCase {
         waitForExpectations(timeout: 0.5, handler: nil)
     }
 }
-//
-// DiffCalculatorTests.swift
-// MarkdownViewer
-//
-// Copyright (c) 2025 Jun Morimoto
-// Licensed under the MIT License
-//
-
-import XCTest
-@testable import MarkdownViewer

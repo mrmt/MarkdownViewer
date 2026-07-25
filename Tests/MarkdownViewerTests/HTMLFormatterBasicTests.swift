@@ -208,7 +208,7 @@ final class StringHTMLEscapeTests: XCTestCase {
         XCTAssertEqual("&lt;".htmlEscaped, "&amp;lt;")
     }
 
-    func testPlainTextUnchanged()  {
+    func testPlainTextUnchanged() {
         XCTAssertEqual("日本語 text 123".htmlEscaped, "日本語 text 123")
     }
 }

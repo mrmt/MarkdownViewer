@@ -17,13 +17,13 @@ struct ContentView: View {
     @State private var markdownContent: String = ""
     @State private var changedLines: Set<Int> = []
     @State private var filePath: String = ""
-    @State private var initialFragment: String? = nil
+    @State private var initialFragment: String?
     @State private var isDragOver = false
     @StateObject private var fileWatcher = FileWatcher()
     @State private var webView: WKWebView?
     @State private var eventMonitor: Any?
     private let keyBindingHandler = KeyBindingHandler()
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // ヘッダー
@@ -42,7 +42,7 @@ struct ContentView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 Divider()
             }
-            
+
             // Markdownビューア
             if markdownContent.isEmpty {
                 // ドラッグ&ドロップエリア
@@ -105,14 +105,14 @@ struct ContentView: View {
             removeKeyEventMonitor()
         }
     }
-    
+
     private func openFile() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true  // 複数ファイルを選択可能にする
         panel.allowedContentTypes = [UTType.text]
-        
+
         if panel.runModal() == .OK {
             for url in panel.urls {
                 if markdownContent.isEmpty {
@@ -125,16 +125,16 @@ struct ContentView: View {
             }
         }
     }
-    
+
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
         // 複数ファイルのドロップに対応
         for (index, provider) in providers.enumerated() {
-            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, error) in
+            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
                 guard let data = item as? Data,
                       let url = URL(dataRepresentation: data, relativeTo: nil),
                       url.pathExtension.lowercased() == "md" || url.pathExtension.lowercased() == "markdown"
                 else { return }
-                
+
                 DispatchQueue.main.async {
                     if index == 0 && self.markdownContent.isEmpty {
                         // 最初のファイルで現在のウィンドウが空の場合は、現在のウィンドウで開く
@@ -146,10 +146,10 @@ struct ContentView: View {
                 }
             }
         }
-        
+
         return true
     }
-    
+
     /// fragment 付き URL を渡すと、ロード完了時に該当見出しへスクロールする
     private func loadMarkdownFile(url: URL) {
         loadMarkdownFile(path: url.path, fragment: url.fragment)
@@ -171,7 +171,7 @@ struct ContentView: View {
             print("ファイルの読み込みに失敗: \(error)")
         }
     }
-    
+
     private func reloadMarkdownFile() {
         guard !filePath.isEmpty else { return }
         do {
@@ -186,7 +186,7 @@ struct ContentView: View {
             print("ファイルの再読み込みに失敗: \(error)")
         }
     }
-    
+
     private func setupKeyEventMonitor() {
         DefaultKeyBindings.register(into: keyBindingHandler)
 
@@ -194,7 +194,7 @@ struct ContentView: View {
             return keyBindingHandler.handle(event, webView: webView)
         }
     }
-    
+
     private func removeKeyEventMonitor() {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)

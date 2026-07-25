@@ -19,7 +19,13 @@ struct MarkdownWebView: NSViewRepresentable {
     @Binding var initialFragment: String?
     @Binding var webView: WKWebView?
 
-    init(markdown: String, changedLines: Set<Int> = [], fileDirectoryURL: URL? = nil, initialFragment: Binding<String?> = .constant(nil), webView: Binding<WKWebView?>) {
+    init(
+        markdown: String,
+        changedLines: Set<Int> = [],
+        fileDirectoryURL: URL? = nil,
+        initialFragment: Binding<String?> = .constant(nil),
+        webView: Binding<WKWebView?>
+    ) {
         self.markdown = markdown
         self.changedLines = changedLines
         self.fileDirectoryURL = fileDirectoryURL
@@ -45,10 +51,10 @@ struct MarkdownWebView: NSViewRepresentable {
 
         return webView
     }
-    
+
     func updateNSView(_ nsView: WKWebView, context: Context) {
         // 現在のスクロール位置を保存してからHTMLをロード
-        nsView.evaluateJavaScript("window.pageYOffset") { result, error in
+        nsView.evaluateJavaScript("window.pageYOffset") { result, _ in
             if let yOffset = result as? CGFloat {
                 context.coordinator.savedScrollPosition = CGPoint(x: 0, y: yOffset)
             }
@@ -70,11 +76,11 @@ struct MarkdownWebView: NSViewRepresentable {
             }
         }
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
-    
+
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var savedScrollPosition: CGPoint?
         /// 次のロード完了時にスクロール先としたい要素のid (fragment)。一度適用したらnilに戻す
@@ -90,7 +96,11 @@ struct MarkdownWebView: NSViewRepresentable {
             handleLinkClick(url: url)
         }
 
-        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
             // リンククリックは基本的にJSインターセプタ側でpreventDefaultされるため、
             // ここには届かない。保険として実装するフォールバック:
             //   - ページ内アンカー (同一ドキュメント内fragment) → WebKitの既定動作を許可
@@ -189,7 +199,7 @@ struct MarkdownWebView: NSViewRepresentable {
             webView.evaluateJavaScript(script, completionHandler: nil)
         }
     }
-    
+
     // WKWebViewのサブクラスを作成して、マウスクリック時にフォーカスを設定
     class FocusableWebView: WKWebView {
         override func mouseDown(with event: NSEvent) {
@@ -198,8 +208,7 @@ struct MarkdownWebView: NSViewRepresentable {
             window?.makeFirstResponder(self)
         }
     }
-    
-    
+
     // スクロール操作用のメソッド
 
     /// WebViewでJavaScriptスクロールコマンドを実行する共通ヘルパー

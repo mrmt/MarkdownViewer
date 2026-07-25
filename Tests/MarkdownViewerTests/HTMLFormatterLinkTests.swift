@@ -102,12 +102,3 @@ final class HTMLFormatterLinkTests: XCTestCase {
         XCTAssertTrue(html.contains("href=\"file:///tmp/docs/other.md?v=1\""), html)
     }
 }
-
-//
-// HTMLFormatterHeadingIdTests.swift
-// 見出しに slug id を付与するテスト (ページ内アンカー用)
-//
-
-import XCTest
-import Markdown
-@testable import MarkdownViewer
