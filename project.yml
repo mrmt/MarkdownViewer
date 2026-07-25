@@ -1,0 +1,93 @@
+# XcodeGen プロジェクト定義
+# project.pbxproj はこのファイルから生成する: xcodegen generate
+# 生成後の pbxproj もコミットする (xcodegen 未インストール環境でも make build 可能にするため)。
+# CI が project.yml と pbxproj の整合性を検証する。
+name: MarkdownViewer
+options:
+  developmentLanguage: ja
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+# バージョンの単一情報源。Info.plist は $(MARKETING_VERSION) / $(CURRENT_PROJECT_VERSION) を参照する
+settings:
+  base:
+    MARKETING_VERSION: "1.7"
+    CURRENT_PROJECT_VERSION: "7"
+    SWIFT_VERSION: "5.0"
+    # 旧pbxprojの値に合わせる (XcodeGenデフォルトとの差分を吸収)
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+packages:
+  swift-markdown:
+    url: https://github.com/swiftlang/swift-markdown.git
+    minorVersion: 0.7.3  # Package.swift の .upToNextMinor と揃える
+
+targets:
+  MarkdownViewer:
+    type: application
+    platform: macOS
+    sources:
+      - path: MarkdownViewer
+        excludes:
+          - "Info.plist"
+          - "MarkdownViewer.entitlements"  # 署名参照のみ。バンドルへはコピーしない (従来挙動)
+    dependencies:
+      - package: swift-markdown
+        product: Markdown
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: MarkdownViewer/Info.plist
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        PRODUCT_BUNDLE_IDENTIFIER: net.mrmt.MarkdownViewer
+        PRODUCT_NAME: $(TARGET_NAME)
+        CODE_SIGN_ENTITLEMENTS: MarkdownViewer/MarkdownViewer.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_PREVIEWS: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        COMBINE_HIDPI_IMAGES: YES
+        SWIFT_EMIT_LOC_STRINGS: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/../Frameworks"
+
+  MarkdownViewerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/MarkdownViewerTests
+    dependencies:
+      - target: MarkdownViewer
+    settings:
+      base:
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/MarkdownViewer.app/Contents/MacOS/MarkdownViewer
+        PRODUCT_BUNDLE_IDENTIFIER: net.mrmt.MarkdownViewerTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+
+schemes:
+  MarkdownViewer:
+    build:
+      targets:
+        MarkdownViewer: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MarkdownViewerTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

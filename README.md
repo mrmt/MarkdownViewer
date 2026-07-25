@@ -20,23 +20,28 @@ macOS用のシンプルで使いやすいMarkdownビューアアプリケーシ�
 
 - Xcode 16.3以降
 
-### 初回セットアップ (swift-markdownパッケージの追加)
+### プロジェクト構成 (XcodeGen)
 
-1. Xcodeでプロジェクトを開く:
+`MarkdownViewer.xcodeproj` は [XcodeGen](https://github.com/yonaskolb/XcodeGen) で `project.yml` から生成される。
+生成済み pbxproj もコミットされているため、ビルドだけなら XcodeGen は不要。
+
+ソースファイルの追加・削除やビルド設定の変更を行う場合:
 
 ```bash
-open MarkdownViewer.xcodeproj
+brew install xcodegen
+# project.yml を編集後
+xcodegen generate
 ```
 
-1. swift-markdownパッケージを追加:
+バージョン番号は `project.yml` の `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` が唯一の管理箇所
+(Info.plist はビルド設定変数を参照)。変更後に `xcodegen generate` を実行すること。
 
-   - Xcodeのプロジェクトナビゲータで `MarkdownViewer` プロジェクトを選択
-   - `PROJECT` > `MarkdownViewer` を選択
-   - `Package Dependencies` タブを選択
-   - `+` ボタンをクリック
-   - 検索フィールドに `https://github.com/swiftlang/swift-markdown.git` を入力
-   - `Add Package` をクリック
-   - `Markdown` プロダクトを選択して `Add Package` をクリック
+### テスト
+
+```bash
+swift test                # SwiftPM 経由
+xcodebuild test -project MarkdownViewer.xcodeproj -scheme MarkdownViewer  # Xcode 経由
+```
 
 ### ビルド手順
 
