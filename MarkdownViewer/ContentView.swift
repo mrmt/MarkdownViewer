@@ -131,23 +131,28 @@ struct ContentView: View {
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        // 複数ファイルのドロップに対応
-        for (index, provider) in providers.enumerated() {
-            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { (item, _) in
-                guard let data = item as? Data,
-                      let url = URL(dataRepresentation: data, relativeTo: nil),
-                      url.pathExtension.lowercased() == "md" || url.pathExtension.lowercased() == "markdown"
-                else { return }
+        // 各providerのURL解決は非同期で完了順が不定なため、
+        // 全て揃ってから DropTargetPlanner で決定的に振り分ける
+        let group = DispatchGroup()
+        var urls = [URL?](repeating: nil, count: providers.count)
 
-                DispatchQueue.main.async {
-                    if index == 0 && self.markdownContent.isEmpty {
-                        // 最初のファイルで現在のウィンドウが空の場合は、現在のウィンドウで開く
-                        self.loadMarkdownFile(path: url.path)
-                    } else {
-                        // それ以外は新しいウィンドウで開く
-                        NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
-                    }
-                }
+        for (index, provider) in providers.enumerated() {
+            group.enter()
+            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { item, _ in
+                defer { group.leave() }
+                guard let data = item as? Data,
+                      let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
+                urls[index] = url
+            }
+        }
+
+        group.notify(queue: .main) {
+            let plan = DropTargetPlanner.plan(urls: urls, isCurrentWindowEmpty: self.markdownContent.isEmpty)
+            if let url = plan.openInCurrentWindow {
+                self.loadMarkdownFile(path: url.path)
+            }
+            for url in plan.openInNewWindows {
+                NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
             }
         }
 

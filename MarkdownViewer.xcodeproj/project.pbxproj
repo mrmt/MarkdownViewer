@@ -28,8 +28,10 @@
 		A2BCC34F7B3E7D3139807532 /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9449001A322527ECA0311415 /* FileWatcher.swift */; };
 		A87012D90DCA1E9FFC1533BB /* HTMLFormatterChangedLinesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFBF626D9C63F8D11133A21 /* HTMLFormatterChangedLinesTests.swift */; };
 		BA475A2E3A69C985E194201F /* WindowAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71389E3E0CCFADFB6CE9EF20 /* WindowAccessor.swift */; };
+		BFDD6A49557933FF0536BAAD /* DropTargetPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8801353ECB8B9B26A851D7C2 /* DropTargetPlannerTests.swift */; };
 		C3B617A5498F31C176309E58 /* LaunchArgumentParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88835FCAF477A881F3C4F03A /* LaunchArgumentParser.swift */; };
 		CCFB7360B8FE2CC1E3DE6A72 /* KeyBindingHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EACA39995218E31749C411B /* KeyBindingHandler.swift */; };
+		DA7EB04C65D09096AFAA9779 /* DropTargetPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C445FA1C5E0F73D7A47D7E2F /* DropTargetPlanner.swift */; };
 		DB19EAD00A4FFC642AE5BBD5 /* FrontmatterRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584209E0DF29A77C85E05F99 /* FrontmatterRendererTests.swift */; };
 		E14E2CFB165CBB4731DC2217 /* HTMLFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 969583515ECCCDD54D5815BD /* HTMLFormatter.swift */; };
 		E6B4D2D10F7A2CC82B294DDD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1759884BFC72F46AC5B65AC4 /* Assets.xcassets */; };
@@ -64,11 +66,13 @@
 		6B71BDC5EAA0948B17C97EF1 /* MarkdownWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWebView.swift; sourceTree = "<group>"; };
 		6CE86C883001C208D53CE2D0 /* MarkdownViewerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MarkdownViewerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		71389E3E0CCFADFB6CE9EF20 /* WindowAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowAccessor.swift; sourceTree = "<group>"; };
+		8801353ECB8B9B26A851D7C2 /* DropTargetPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropTargetPlannerTests.swift; sourceTree = "<group>"; };
 		88835FCAF477A881F3C4F03A /* LaunchArgumentParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchArgumentParser.swift; sourceTree = "<group>"; };
 		9449001A322527ECA0311415 /* FileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcher.swift; sourceTree = "<group>"; };
 		969583515ECCCDD54D5815BD /* HTMLFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLFormatter.swift; sourceTree = "<group>"; };
 		A049917F987201752391D625 /* MarkdownViewerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownViewerApp.swift; sourceTree = "<group>"; };
 		B9FDB2AECFDDDA348D9D1B37 /* MarkdownStylesheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownStylesheet.swift; sourceTree = "<group>"; };
+		C445FA1C5E0F73D7A47D7E2F /* DropTargetPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropTargetPlanner.swift; sourceTree = "<group>"; };
 		C82C0FB33BA7AD591DDCA63F /* HTMLFormatterBasicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLFormatterBasicTests.swift; sourceTree = "<group>"; };
 		D2414260360EC8A34C7DB3F7 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = mermaid.min.js; sourceTree = "<group>"; };
 		DCFBF626D9C63F8D11133A21 /* HTMLFormatterChangedLinesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLFormatterChangedLinesTests.swift; sourceTree = "<group>"; };
@@ -112,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				59D846EF48D1DE27D7F31533 /* DiffCalculatorTests.swift */,
+				8801353ECB8B9B26A851D7C2 /* DropTargetPlannerTests.swift */,
 				FCE8DE802C4BF3CC2F80913D /* FileWatcherTests.swift */,
 				584209E0DF29A77C85E05F99 /* FrontmatterRendererTests.swift */,
 				C82C0FB33BA7AD591DDCA63F /* HTMLFormatterBasicTests.swift */,
@@ -156,6 +161,7 @@
 		94A0EE7F45EFA235A21DDB21 /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				C445FA1C5E0F73D7A47D7E2F /* DropTargetPlanner.swift */,
 				71389E3E0CCFADFB6CE9EF20 /* WindowAccessor.swift */,
 				21A7DA31166F5ED0EDFCCAE1 /* WindowScopedNotification.swift */,
 			);
@@ -282,6 +288,7 @@
 				38E2DFA7613239D3C2D9D706 /* ContentView.swift in Sources */,
 				5B40BF2EDAA4AAFC01238915 /* DefaultKeyBindings.swift in Sources */,
 				9E8FB7476D3F80EE53B501A4 /* DiffCalculator.swift in Sources */,
+				DA7EB04C65D09096AFAA9779 /* DropTargetPlanner.swift in Sources */,
 				A2BCC34F7B3E7D3139807532 /* FileWatcher.swift in Sources */,
 				37F5E00B61BE3A1AEFC92642 /* FrontmatterRenderer.swift in Sources */,
 				E14E2CFB165CBB4731DC2217 /* HTMLFormatter.swift in Sources */,
@@ -301,6 +308,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8682B1CA6E54385A7A0D7730 /* DiffCalculatorTests.swift in Sources */,
+				BFDD6A49557933FF0536BAAD /* DropTargetPlannerTests.swift in Sources */,
 				5DE862B0858ED6E805017236 /* FileWatcherTests.swift in Sources */,
 				DB19EAD00A4FFC642AE5BBD5 /* FrontmatterRendererTests.swift in Sources */,
 				5847DCC8AD30BA5FB64146CA /* HTMLFormatterBasicTests.swift in Sources */,
