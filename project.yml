@@ -12,8 +12,8 @@ options:
 # バージョンの単一情報源。Info.plist は $(MARKETING_VERSION) / $(CURRENT_PROJECT_VERSION) を参照する
 settings:
   base:
-    MARKETING_VERSION: "1.7"
-    CURRENT_PROJECT_VERSION: "7"
+    MARKETING_VERSION: "1.8"
+    CURRENT_PROJECT_VERSION: "8"
     SWIFT_VERSION: "5.0"
     # 旧pbxprojの値に合わせる (XcodeGenデフォルトとの差分を吸収)
     DEAD_CODE_STRIPPING: YES
