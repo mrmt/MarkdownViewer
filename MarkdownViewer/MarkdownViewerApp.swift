@@ -113,24 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.activate(ignoringOtherApps: true)
         
         // コマンドライン引数からファイルを取得
-        let args = CommandLine.arguments
-        if args.count > 1 {
-            var skipNext = false
-            for arg in args.dropFirst() {
-                if skipNext {
-                    skipNext = false
-                    continue
-                }
-                if arg.hasPrefix("-") {
-                    skipNext = true
-                    continue
-                }
-                // ファイルとして存在するかチェック
-                if FileManager.default.fileExists(atPath: arg) {
-                    pendingFileURLs.append(URL(fileURLWithPath: arg))
-                }
-            }
-        }
+        pendingFileURLs.append(contentsOf: LaunchArgumentParser.extractFileURLs(from: CommandLine.arguments))
         
         // 保留中のファイルを開く
         if !pendingFileURLs.isEmpty {
