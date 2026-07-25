@@ -13,11 +13,13 @@
 		45C0461BEE524063FF4B5038 /* KeyBindingHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E63D82EA8196E70B313A8E /* KeyBindingHandlerTests.swift */; };
 		5601E808272C7204B90874A2 /* MarkdownViewerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1559EA6D785B4F6BCF51B7B1 /* MarkdownViewerTests.swift */; };
 		5847DCC8AD30BA5FB64146CA /* HTMLFormatterBasicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C82C0FB33BA7AD591DDCA63F /* HTMLFormatterBasicTests.swift */; };
+		5B40BF2EDAA4AAFC01238915 /* DefaultKeyBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A72D6D7E92E489E107C49F /* DefaultKeyBindings.swift */; };
 		622BF002C2DB6DFDAA66C561 /* MarkdownWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B71BDC5EAA0948B17C97EF1 /* MarkdownWebView.swift */; };
 		811C438C162770AEB727B953 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = D2414260360EC8A34C7DB3F7 /* mermaid.min.js */; };
 		9E8FB7476D3F80EE53B501A4 /* DiffCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 147B03B5B099B465E14A45D2 /* DiffCalculator.swift */; };
 		A2BCC34F7B3E7D3139807532 /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9449001A322527ECA0311415 /* FileWatcher.swift */; };
 		A87012D90DCA1E9FFC1533BB /* HTMLFormatterChangedLinesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFBF626D9C63F8D11133A21 /* HTMLFormatterChangedLinesTests.swift */; };
+		CCFB7360B8FE2CC1E3DE6A72 /* KeyBindingHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EACA39995218E31749C411B /* KeyBindingHandler.swift */; };
 		E6B4D2D10F7A2CC82B294DDD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1759884BFC72F46AC5B65AC4 /* Assets.xcassets */; };
 		FEFBE4E50CC2625DB01F2B04 /* MarkdownViewerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A049917F987201752391D625 /* MarkdownViewerApp.swift */; };
 /* End PBXBuildFile section */
@@ -40,6 +42,7 @@
 		272941596DFB3585C02CAFC6 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2EE3CF4FCD3330B5B29A3E7D /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		42E63D82EA8196E70B313A8E /* KeyBindingHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindingHandlerTests.swift; sourceTree = "<group>"; };
+		5EACA39995218E31749C411B /* KeyBindingHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyBindingHandler.swift; sourceTree = "<group>"; };
 		6B71BDC5EAA0948B17C97EF1 /* MarkdownWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownWebView.swift; sourceTree = "<group>"; };
 		6CE86C883001C208D53CE2D0 /* MarkdownViewerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MarkdownViewerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9449001A322527ECA0311415 /* FileWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcher.swift; sourceTree = "<group>"; };
@@ -47,6 +50,7 @@
 		C82C0FB33BA7AD591DDCA63F /* HTMLFormatterBasicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLFormatterBasicTests.swift; sourceTree = "<group>"; };
 		D2414260360EC8A34C7DB3F7 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = mermaid.min.js; sourceTree = "<group>"; };
 		DCFBF626D9C63F8D11133A21 /* HTMLFormatterChangedLinesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLFormatterChangedLinesTests.swift; sourceTree = "<group>"; };
+		F3A72D6D7E92E489E107C49F /* DefaultKeyBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultKeyBindings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,8 +113,18 @@
 				A049917F987201752391D625 /* MarkdownViewerApp.swift */,
 				6B71BDC5EAA0948B17C97EF1 /* MarkdownWebView.swift */,
 				D2414260360EC8A34C7DB3F7 /* mermaid.min.js */,
+				EB729E91C8F920788570A282 /* Input */,
 			);
 			path = MarkdownViewer;
+			sourceTree = "<group>";
+		};
+		EB729E91C8F920788570A282 /* Input */ = {
+			isa = PBXGroup;
+			children = (
+				F3A72D6D7E92E489E107C49F /* DefaultKeyBindings.swift */,
+				5EACA39995218E31749C411B /* KeyBindingHandler.swift */,
+			);
+			path = Input;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -211,8 +225,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				38E2DFA7613239D3C2D9D706 /* ContentView.swift in Sources */,
+				5B40BF2EDAA4AAFC01238915 /* DefaultKeyBindings.swift in Sources */,
 				9E8FB7476D3F80EE53B501A4 /* DiffCalculator.swift in Sources */,
 				A2BCC34F7B3E7D3139807532 /* FileWatcher.swift in Sources */,
+				CCFB7360B8FE2CC1E3DE6A72 /* KeyBindingHandler.swift in Sources */,
 				FEFBE4E50CC2625DB01F2B04 /* MarkdownViewerApp.swift in Sources */,
 				622BF002C2DB6DFDAA66C561 /* MarkdownWebView.swift in Sources */,
 			);
