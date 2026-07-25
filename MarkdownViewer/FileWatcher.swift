@@ -23,8 +23,9 @@ class FileWatcher: ObservableObject {
     /// ファイル監視を開始
     /// - Parameters:
     ///   - path: 監視するファイルのパス
+    ///   - interval: 変更チェックの間隔 (秒)。テストでは短くして高速化できる
     ///   - onChange: ファイルが変更されたときに実行されるコールバック
-    func startWatching(path: String, onChange: @escaping () -> Void) {
+    func startWatching(path: String, interval: TimeInterval = 0.5, onChange: @escaping () -> Void) {
         stopWatching()
 
         self.filePath = path
@@ -33,8 +34,7 @@ class FileWatcher: ObservableObject {
         // 現在の最終更新時刻を取得
         updateLastModificationDate()
 
-        // 0.5秒ごとにファイルの変更をチェック
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.checkFileAndNotify()
         }
     }

@@ -40,39 +40,37 @@ final class FileWatcherTests: XCTestCase {
 
     func testFileModificationIsDetected() throws {
         let expectation = self.expectation(description: "File change should be detected")
-        
-        // ファイル監視を開始
-        fileWatcher.startWatching(path: tempFilePath) {
+
+        // 監視間隔を短くしてテストを高速化 (本番デフォルトは0.5秒)
+        fileWatcher.startWatching(path: tempFilePath, interval: 0.05) {
             expectation.fulfill()
         }
-        
-        // ファイルの初回更新時刻が記録されるのを少し待つ
-        Thread.sleep(forTimeInterval: 0.6)
+
+        // mtime が確実に前回より新しくなるよう少しだけ待つ
+        Thread.sleep(forTimeInterval: 0.1)
 
         // ファイルの内容を変更して更新時刻を更新
         try "Updated content".write(toFile: tempFilePath, atomically: true, encoding: .utf8)
 
-        // 期待した変更が検知されるまで最大2秒待つ
         waitForExpectations(timeout: 2.0, handler: nil)
     }
-    
+
     func testStopWatchingPreventsDetection() throws {
         let expectation = self.expectation(description: "File change should not be detected")
         expectation.isInverted = true // この expectation が fulfill されないことを期待する
 
-        // ファイル監視を開始
-        fileWatcher.startWatching(path: tempFilePath) {
+        fileWatcher.startWatching(path: tempFilePath, interval: 0.05) {
             expectation.fulfill()
         }
-        
+
         // 監視をすぐに停止
         fileWatcher.stopWatching()
-        
+
         // ファイルの内容を変更
         try "Updated content".write(toFile: tempFilePath, atomically: true, encoding: .utf8)
 
         // 変更が検知されないことを確認するために少し待つ
-        waitForExpectations(timeout: 1.0, handler: nil)
+        waitForExpectations(timeout: 0.5, handler: nil)
     }
 }
 //
