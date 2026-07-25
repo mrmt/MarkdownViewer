@@ -15,6 +15,7 @@
 		5847DCC8AD30BA5FB64146CA /* HTMLFormatterBasicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C82C0FB33BA7AD591DDCA63F /* HTMLFormatterBasicTests.swift */; };
 		622BF002C2DB6DFDAA66C561 /* MarkdownWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B71BDC5EAA0948B17C97EF1 /* MarkdownWebView.swift */; };
 		811C438C162770AEB727B953 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = D2414260360EC8A34C7DB3F7 /* mermaid.min.js */; };
+		9E8FB7476D3F80EE53B501A4 /* DiffCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 147B03B5B099B465E14A45D2 /* DiffCalculator.swift */; };
 		A2BCC34F7B3E7D3139807532 /* FileWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9449001A322527ECA0311415 /* FileWatcher.swift */; };
 		A87012D90DCA1E9FFC1533BB /* HTMLFormatterChangedLinesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFBF626D9C63F8D11133A21 /* HTMLFormatterChangedLinesTests.swift */; };
 		E6B4D2D10F7A2CC82B294DDD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1759884BFC72F46AC5B65AC4 /* Assets.xcassets */; };
@@ -32,6 +33,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		147B03B5B099B465E14A45D2 /* DiffCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffCalculator.swift; sourceTree = "<group>"; };
 		1559EA6D785B4F6BCF51B7B1 /* MarkdownViewerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownViewerTests.swift; sourceTree = "<group>"; };
 		1759884BFC72F46AC5B65AC4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1FF43CC71D6561F64CDCF7C0 /* MarkdownViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MarkdownViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -102,6 +104,7 @@
 				2EE3CF4FCD3330B5B29A3E7D /* AppIcon.icns */,
 				1759884BFC72F46AC5B65AC4 /* Assets.xcassets */,
 				272941596DFB3585C02CAFC6 /* ContentView.swift */,
+				147B03B5B099B465E14A45D2 /* DiffCalculator.swift */,
 				9449001A322527ECA0311415 /* FileWatcher.swift */,
 				A049917F987201752391D625 /* MarkdownViewerApp.swift */,
 				6B71BDC5EAA0948B17C97EF1 /* MarkdownWebView.swift */,
@@ -208,6 +211,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				38E2DFA7613239D3C2D9D706 /* ContentView.swift in Sources */,
+				9E8FB7476D3F80EE53B501A4 /* DiffCalculator.swift in Sources */,
 				A2BCC34F7B3E7D3139807532 /* FileWatcher.swift in Sources */,
 				FEFBE4E50CC2625DB01F2B04 /* MarkdownViewerApp.swift in Sources */,
 				622BF002C2DB6DFDAA66C561 /* MarkdownWebView.swift in Sources */,
