@@ -255,8 +255,12 @@ struct HTMLFormatter: MarkupWalker {
     }
 
     mutating func visitTableCell(_ tableCell: Markdown.Table.Cell) {
-        let tag = tableCell.colspan > 1 ? "th" : "td"
-        result += "<\(tag)>"
+        // ヘッダ行 (Table.Head 配下) のセルだけ <th>。colspan は属性として出力する
+        let isHeaderCell = sequence(first: tableCell.parent, next: { $0?.parent })
+            .contains { $0 is Markdown.Table.Head }
+        let tag = isHeaderCell ? "th" : "td"
+        let colspanAttr = tableCell.colspan > 1 ? " colspan=\"\(tableCell.colspan)\"" : ""
+        result += "<\(tag)\(colspanAttr)>"
         descendInto(tableCell)
         result += "</\(tag)>"
     }
