@@ -22,7 +22,7 @@ settings:
 packages:
   swift-markdown:
     url: https://github.com/swiftlang/swift-markdown.git
-    minorVersion: 0.7.3  # Package.swift の .upToNextMinor と揃える
+    minorVersion: 0.8.0  # Package.swift の .upToNextMinor と揃える
 
 targets:
   MarkdownViewer:
